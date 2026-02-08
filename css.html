@@ -1,0 +1,100 @@
+<style>
+    :root {
+        --primary-color: #1a73e8;
+        --teacher-color: #d93025;
+        --bg-color: #f8f9fa;
+        --paper-color: #fdfbf7;
+        --line-color: rgba(46, 125, 50, 0.4);
+        --line-strong: rgba(46, 125, 50, 0.8);
+        --correction-bg: rgba(255, 0, 0, 0.1); /* 添削箇所の背景 */
+        --correction-border: 2px solid #d93025; /* 添削の赤線 */
+        --selecting-bg: rgba(255, 235, 59, 0.5); /* 選択中の背景（黄色） */
+    }
+
+    body { font-family: "Zen Maru Gothic", sans-serif; background-color: var(--bg-color); height: 100vh; overflow: hidden; color: #333; }
+    
+    body.teacher-mode { --primary-color: var(--teacher-color); }
+    body.teacher-mode .navbar { border-bottom: 3px solid var(--teacher-color); }
+
+    .navbar { background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+    .main-container { height: calc(100vh - 60px - 30px); padding: 20px 0; }
+    
+    /* 先生モード時のコンテナ余白調整 */
+    body.teacher-mode .main-container { padding: 0; height: calc(100vh - 60px); }
+
+    .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); height: 100%; display: flex; flex-direction: column; }
+
+    /* ステータスバッジ */
+    .status-badge { font-size: 0.7em; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
+    .status-draft { background: #eee; color: #555; }
+    .status-submitted { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+    .status-rework { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    .status-completed { background: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+    .status-returned { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+
+    /* リストアイテム */
+    .list-group-item { cursor: pointer; border-left: 4px solid transparent; transition: background 0.2s; }
+    .list-group-item:hover { background-color: #f8f9fa; }
+    .list-group-item.active { background-color: #fff3cd; color: inherit; border-color: #ffc107; border-left-width: 4px; }
+
+    /* 原稿用紙 (共通) */
+    .preview-area { background: #e9ecef; border-radius: 12px; overflow: auto; display: flex; align-items: center; padding: 20px; direction: rtl; }
+    /* 先生用プレビューエリアの微調整 */
+    #teacher-dashboard .preview-area { border-radius: 0; height: 100%; align-items: start; padding-top: 40px; }
+
+    #paper-wrapper, #teacher-paper-wrapper { margin: 0 auto; flex-shrink: 0; position: relative; }
+    #paper-scaler, #teacher-paper-scaler { transform-origin: top right; transition: transform 0.3s ease-out; position: absolute; top: 0; right: 0; }
+    
+    .paper-sheet { background: var(--paper-color); padding: 40px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); width: fit-content; min-width: 600px; display: flex; direction: ltr; }
+
+    .genko-grid-wrapper { display: flex; flex-direction: row-reverse; }
+    .genko-line { display: flex; flex-direction: column; border-left: 1px solid var(--line-color); }
+    .genko-line:first-child { border-right: 1px solid var(--line-strong); }
+    .genko-line { border-left: 1px solid var(--line-strong); }
+
+    .genko-cell { 
+        font-family: "Zen Old Mincho", serif; 
+        writing-mode: vertical-rl; 
+        text-orientation: mixed; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        border-bottom: 1px solid var(--line-color); 
+        position: relative; 
+        cursor: text;
+        user-select: none; /* ドラッグ選択の実装のため標準選択を無効化 */
+    }
+    .genko-cell:first-child { border-top: 1px solid var(--line-strong); }
+    .genko-cell:last-child { border-bottom: 1px solid var(--line-strong); }
+
+    .hanging-char { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; writing-mode: vertical-rl; font-size: 0.7em; margin-top: 0.1em; pointer-events: none; }
+
+    /* 添削スタイル */
+    .genko-cell.corrected { background-color: var(--correction-bg); cursor: pointer; }
+    .genko-cell.corrected::after { content: ''; position: absolute; top: 0; right: 2px; bottom: 0; width: 2px; background-color: var(--teacher-color); border-radius: 2px; pointer-events: none; }
+    
+    /* 【New】選択中のハイライト */
+    .genko-cell.selecting { background-color: var(--selecting-bg) !important; }
+
+    .input-area-wrapper { flex-grow: 1; position: relative; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+    #content { width: 100%; height: 100%; border: none; resize: none; padding: 20px; font-size: 1.1rem; line-height: 2rem; background-image: linear-gradient(#f1f5f9 1px, transparent 1px); background-size: 100% 2rem; outline: none; }
+
+    #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; }
+
+    @media print {
+        body * { visibility: hidden; }
+        #print-render-area, #print-render-area * { visibility: visible; }
+        #print-render-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+        @page { size: A4 landscape; margin: 0; }
+        .print-page { width: 297mm; height: 210mm; page-break-after: always; position: relative; font-family: "Zen Old Mincho", serif; background: white; padding: 10mm; box-sizing: border-box; }
+        .print-layout-grid { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 16mm 1fr; border: 2px solid #2e7d32; }
+        .print-gyobi-area { border-left: 1px solid #2e7d32; border-right: 1px solid #2e7d32; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #2e7d32; }
+        .gyobi-content { writing-mode: vertical-rl; display: flex; align-items: center; gap: 10mm; }
+        .gyobi-mark { border: 1px solid #2e7d32; width: 6mm; height: 10mm; border-radius: 50% 50% 0 0; margin-bottom: 5mm; }
+        .print-half-grid { display: flex; flex-direction: row-reverse; }
+        .print-line { flex: 1; display: flex; flex-direction: column; border-left: 1px solid rgba(46,125,50,0.4); }
+        .print-cell { flex: 1; border-bottom: 1px solid rgba(46,125,50,0.4); display: flex; align-items: center; justify-content: center; position: relative; writing-mode: vertical-rl; text-orientation: mixed; }
+        .hanging-chars-print { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; writing-mode: vertical-rl; font-size: 0.6em; margin-top: -2mm; line-height: 1; }
+        .print-cell.corrected { border-right: 2px solid #d93025; }
+    }
+</style>
