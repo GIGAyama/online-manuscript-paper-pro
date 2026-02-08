@@ -1,0 +1,751 @@
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- State ---
+    const state = {
+        mode: 'student', 
+        currentDraftId: null,
+        docStatus: 'draft',
+        charsPerLine: 20,
+        corrections: [],
+        teacherPassword: null,
+        draftsList: [],
+        returnedDrafts: [], // 全ての返却物
+        unreadDrafts: [],   // 未読の返却物
+        selectedStudentData: null,
+        selectedIndex: -1,
+        isDragging: false,
+        dragStartIdx: null,
+        dragEndIdx: null,
+        checkedIds: new Set()
+    };
+
+    const STORAGE_KEY = 'genko_pro_autosave_v1'; 
+    const STORAGE_KEY_READ = 'genko_pro_read_receipts_v1'; 
+
+    // --- UI Elements ---
+    const ui = {
+        views: { editor: document.getElementById('editor-view'), dashboard: document.getElementById('teacher-dashboard') },
+        controls: { student: document.getElementById('student-controls') },
+        title: document.getElementById('title'), class: document.getElementById('class'), name: document.getElementById('name'), content: document.getElementById('content'),
+        statusBadge: document.getElementById('doc-status-display'),
+        grid: document.getElementById('genko-grid'),
+        paperContainer: document.getElementById('paper-container'), paperWrapper: document.getElementById('paper-wrapper'), paperScaler: document.getElementById('paper-scaler'),
+        loading: document.getElementById('loading-overlay'),
+        
+        teacherList: document.getElementById('teacher-dashboard-list'),
+        previewInfo: document.getElementById('preview-info'),
+        btnRework: document.getElementById('btn-action-rework'),
+        btnComplete: document.getElementById('btn-action-complete'),
+        teacherGrid: document.getElementById('teacher-genko-grid'),
+        
+        printArea: document.getElementById('print-render-area'),
+        navbarContainer: document.querySelector('.navbar .container-fluid .d-flex'),
+        checkAll: document.getElementById('check-all')
+    };
+
+    const setLoading = (show) => ui.loading.style.display = show ? 'flex' : 'none';
+
+    // --- 通知ボタン ---
+    const notificationBtn = document.createElement('button');
+    notificationBtn.className = 'btn btn-outline-warning position-relative me-2 d-none';
+    notificationBtn.innerHTML = `<i class="bi bi-bell-fill"></i><span class="position-absolute top-0 start-100 translate-middle p-2 bg-danger border border-light rounded-circle"><span class="visually-hidden">New alerts</span></span>`;
+    notificationBtn.onclick = () => showReturnedListModal();
+    ui.navbarContainer.insertBefore(notificationBtn, document.getElementById('btn-teacher-login'));
+    ui.notificationBtn = notificationBtn;
+
+    // --- Core Logic: Rendering ---
+    const generateHeaderLines = (title, className, name, chars) => {
+        const lines = [];
+        const titleParas = (title||'').split('\n');
+        titleParas.forEach(p => {
+            if(!p && lines.length===0) return;
+            let line = Array(chars).fill({c:'', idx:null});
+            let cursor = 2; 
+            p.split('').forEach(char => {
+                if(cursor >= chars) { lines.push(line); line = Array(chars).fill({c:'', idx:null}); cursor = 0; }
+                const newLine = [...line]; newLine[cursor] = {c: char, idx: null}; line = newLine; cursor++;
+            });
+            lines.push(line);
+        });
+        if(lines.length===0 || (title && lines.length > 0)) lines.push(Array(chars).fill({c:'', idx:null}));
+        const footerText = ((className||'') + ' ' + (name||'')).trim();
+        if(footerText) {
+            let line = Array(chars).fill({c:'', idx:null});
+            let start = Math.max(0, chars - footerText.length - 1); 
+            footerText.split('').forEach((char, i) => {
+                if(start + i < chars) { const newLine = [...line]; newLine[start + i] = {c: char, idx: null}; line = newLine; }
+            });
+            lines.push(line); lines.push(Array(chars).fill({c:'', idx:null}));
+        }
+        return lines;
+    };
+
+    const parseBodyWithIndex = (text, chars) => {
+        const lines = [];
+        const noStart = ['、','。','」','』','）','っ','ゃ','ゅ','ょ','ッ','ャ','ュ','ョ','ー',',','.','」','』',']','}','>','ぁ','ぃ','ぅ','ぇ','ぉ','ァ','ィ','ゥ','ェ','ォ','ヮ','ヵ','ヶ','・','？','！','‼','⁇','々'];
+        let charGlobalIndex = 0; 
+        const paragraphs = (text||'').split('\n');
+        paragraphs.forEach(p => {
+            if (p === '') { lines.push(Array(chars).fill({c:'', idx:null})); charGlobalIndex += 1; return; }
+            let line = [];
+            const pChars = p.split('');
+            let i = 0;
+            while (i < pChars.length) {
+                const char = pChars[i];
+                let cellData = { c: char, idx: charGlobalIndex + i };
+                line.push(cellData);
+                i++;
+                if (line.length >= chars) {
+                    if (i < pChars.length && noStart.includes(pChars[i])) {
+                        line.push({ c: pChars[i], idx: charGlobalIndex + i }); i++;
+                    }
+                    lines.push(line); line = [];
+                }
+            }
+            if (line.length > 0) { while(line.length < chars) line.push({c:'', idx:null}); lines.push(line); }
+            charGlobalIndex += pChars.length + 1;
+        });
+        return lines;
+    };
+
+    const renderToGrid = (targetGrid, title, className, name, content, corrections, isTeacherView = false) => {
+        const chars = state.charsPerLine;
+        const headerLines = generateHeaderLines(title, className, name, chars);
+        const bodyLines = parseBodyWithIndex(content, chars);
+        const allLines = [...headerLines, ...bodyLines];
+
+        targetGrid.innerHTML = '';
+        const renderLen = Math.max(allLines.length, 10);
+
+        for(let i=0; i<renderLen; i++) {
+            const lineData = allLines[i] || Array(chars).fill({c:'', idx:null});
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'genko-line';
+
+            for(let j=0; j<chars; j++) {
+                const cellData = lineData[j] || {c:'', idx:null};
+                const cell = document.createElement('div');
+                cell.className = 'genko-cell';
+                
+                cell.style.width = chars===20 ? '2.8rem' : '3.6rem';
+                cell.style.height = chars===20 ? '2.8rem' : '3.6rem';
+                cell.style.fontSize = chars===20 ? '1.6rem' : '2.0rem';
+                cell.textContent = cellData.c;
+
+                if (j === chars - 1 && lineData.length > chars) {
+                    const hangingPart = lineData.slice(chars);
+                    const hDiv = document.createElement('div');
+                    hDiv.className = 'hanging-char';
+                    hDiv.textContent = hangingPart.map(d => d.c).join('');
+                    cell.appendChild(hDiv);
+                }
+
+                if (cellData.idx !== null && corrections.length > 0) {
+                    const cor = corrections.find(c => cellData.idx >= c.start && cellData.idx < c.end);
+                    if (cor) {
+                        cell.classList.add('corrected');
+                        cell.onclick = (e) => {
+                            if(!state.isDragging) {
+                                e.stopPropagation(); 
+                                Swal.fire({ title: '添削コメント', text: cor.comment, icon: 'info', confirmButtonText: '閉じる' });
+                            }
+                        };
+                    }
+                }
+                
+                if (isTeacherView && cellData.idx !== null) {
+                    cell.dataset.idx = cellData.idx;
+                }
+
+                lineDiv.appendChild(cell);
+            }
+            targetGrid.appendChild(lineDiv);
+        }
+    };
+
+    const renderStudentApp = () => {
+        renderToGrid(ui.grid, ui.title.value, ui.class.value, ui.name.value, ui.content.value, state.corrections, false);
+        // 【修正】フィット関数へ正しく引数を渡す
+        setTimeout(() => {
+            const sheet = ui.paperContainer.querySelector('.paper-sheet');
+            fitPaperToScreen(ui.paperContainer, sheet);
+        }, 50);
+    };
+
+    const renderTeacherApp = () => {
+        if (!state.selectedStudentData) { ui.teacherGrid.innerHTML = ''; return; }
+        const d = state.selectedStudentData;
+        const cors = typeof d.correction === 'string' ? (d.correction ? JSON.parse(d.correction) : []) : (d.correction || []);
+        state.corrections = cors; 
+        
+        renderToGrid(ui.teacherGrid, d.title, d.class, d.name, d.content, cors, true);
+        
+        // 【修正】共通のフィット関数を使用
+        const container = document.getElementById('teacher-preview-container');
+        const sheet = container.querySelector('.paper-sheet');
+        setTimeout(() => fitPaperToScreen(container, sheet), 10);
+    };
+    
+    // 【修正】汎用フィット関数 (縦スクロール完全防止)
+    const fitPaperToScreen = (container, sheet) => {
+        if(!sheet || !container) return;
+        const scaler = sheet.parentElement;
+        const wrapper = scaler.parentElement;
+        
+        // リセット
+        scaler.style.transform = 'scale(1)';
+        scaler.style.transformOrigin = 'top right';
+        wrapper.style.width = 'auto'; 
+        wrapper.style.height = 'auto';
+        container.style.overflowY = 'hidden'; // 縦スクロール強制無効
+        
+        // コンテナの有効高さ（パディング考慮）
+        const style = window.getComputedStyle(container);
+        const vPadding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+        const containerH = container.clientHeight - vPadding;
+        
+        const sheetH = sheet.scrollHeight;
+        if(sheetH === 0) return;
+        
+        // 比率計算 (少し余裕を持たせる)
+        let scale = (containerH - 20) / sheetH;
+        if(scale > 1) scale = 1;
+        
+        // 適用
+        scaler.style.transform = `scale(${scale})`;
+        wrapper.style.width = `${sheet.scrollWidth * scale}px`;
+        wrapper.style.height = `${sheetH * scale}px`;
+    };
+
+    // リサイズイベント
+    window.addEventListener('resize', () => {
+        if(state.mode === 'student') {
+             const sheet = ui.paperContainer.querySelector('.paper-sheet');
+             fitPaperToScreen(ui.paperContainer, sheet);
+        } else {
+             const container = document.getElementById('teacher-preview-container');
+             const sheet = container ? container.querySelector('.paper-sheet') : null;
+             fitPaperToScreen(container, sheet);
+        }
+    });
+
+
+    // ==========================================
+    //  Student Logic
+    // ==========================================
+    const autoSave = () => {
+        if(state.mode !== 'student') return;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            id: state.currentDraftId, title: ui.title.value, class: ui.class.value, name: ui.name.value,
+            content: ui.content.value, status: state.docStatus, timestamp: new Date().getTime()
+        }));
+    };
+
+    const restoreFromAutoSave = () => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                if (data.title || data.content) {
+                    state.currentDraftId = data.id || null;
+                    state.docStatus = data.status || 'draft';
+                    ui.title.value = data.title||''; ui.class.value = data.class||''; ui.name.value = data.name||''; ui.content.value = data.content||'';
+                    updateEditorUI();
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: '前回の続きを表示', timer: 2000, showConfirmButton:false });
+                }
+            } catch (e) {}
+        }
+    };
+
+    const checkReturnedAssignments = () => {
+        google.script.run.withSuccessHandler(res => {
+            if(res.status === 'success') {
+                const list = res.data;
+                const allReturned = list.filter(d => ['rework','completed','returned'].includes(d.status));
+                const readReceipts = JSON.parse(localStorage.getItem(STORAGE_KEY_READ) || '{}');
+                const unread = allReturned.filter(d => {
+                    const lastReadTime = readReceipts[d.id];
+                    return lastReadTime !== d.updatedAt;
+                });
+                state.returnedDrafts = allReturned;
+                state.unreadDrafts = unread;
+
+                if(unread.length > 0) {
+                    ui.notificationBtn.classList.remove('d-none');
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: `新しい返却が${unread.length}件あります`, timer: 4000, showConfirmButton:false });
+                } else ui.notificationBtn.classList.add('d-none');
+            }
+        }).getDraftList('student');
+    };
+
+    const markAsRead = (item) => {
+        const readReceipts = JSON.parse(localStorage.getItem(STORAGE_KEY_READ) || '{}');
+        readReceipts[item.id] = item.updatedAt;
+        localStorage.setItem(STORAGE_KEY_READ, JSON.stringify(readReceipts));
+        checkReturnedAssignments();
+    };
+
+    const showReturnedListModal = () => {
+        if(state.returnedDrafts.length === 0) return;
+        const readReceipts = JSON.parse(localStorage.getItem(STORAGE_KEY_READ) || '{}');
+        const listHtml = state.returnedDrafts.map(item => {
+            const isUnread = readReceipts[item.id] !== item.updatedAt;
+            const badgeHtml = isUnread ? '<span class="badge bg-danger ms-2">New</span>' : '';
+            const bgClass = isUnread ? 'bg-white' : 'bg-light text-muted';
+            let statusLabel = '';
+            if(item.status === 'rework') statusLabel = '【再提出】';
+            else if(item.status === 'completed') statusLabel = '【完了】';
+            else statusLabel = '【返却済】';
+
+            return `
+            <div class="d-flex justify-content-between align-items-center p-2 border-bottom text-start ${bgClass}">
+                <div><div class="fw-bold text-danger">${statusLabel} ${item.title || '(無題)'} ${badgeHtml}</div><div class="small">${item.updatedAt}</div></div>
+                <button class="btn btn-sm btn-primary open-returned-btn" data-id="${item.id}">確認</button>
+            </div>`;
+        }).join('');
+
+        Swal.fire({
+            title: '返却された作文',
+            html: `<div style="max-height: 300px; overflow-y: auto;">${listHtml}</div>`,
+            showCloseButton: true, showConfirmButton: false,
+            didOpen: () => {
+                const container = Swal.getHtmlContainer();
+                container.querySelectorAll('.open-returned-btn').forEach(btn => {
+                    btn.addEventListener('click', () => { confirmAndOpenReturned(btn.dataset.id); });
+                });
+            }
+        });
+    };
+
+    const confirmAndOpenReturned = (id) => {
+        Swal.close();
+        const target = state.returnedDrafts.find(d => d.id === id);
+        if (target) markAsRead(target);
+
+        if (state.currentDraftId !== id && (ui.content.value.trim() !== '' || ui.title.value.trim() !== '')) {
+            Swal.fire({
+                title: '作業中の内容があります',
+                text: '返却された作文を開くと、現在入力中の内容は消えてしまいます。開きますか？',
+                icon: 'warning', showCancelButton: true, confirmButtonText: '開く（今の内容は破棄）', cancelButtonText: 'キャンセル'
+            }).then((result) => { if (result.isConfirmed) loadStudentDraft(id); });
+        } else {
+            loadStudentDraft(id);
+        }
+    };
+
+    const handleSave = (isSubmit) => {
+        if(!ui.content.value) return Swal.fire('エラー', '本文がありません', 'warning');
+        if(isSubmit && !confirm('提出しますか？')) return;
+        setLoading(true);
+        const data = { id: state.currentDraftId, title: ui.title.value, class: ui.class.value, name: ui.name.value, content: ui.content.value };
+        google.script.run.withSuccessHandler(res => {
+            setLoading(false);
+            if(res.status === 'success') {
+                state.currentDraftId = res.id; state.docStatus = res.docStatus;
+                updateEditorUI(); autoSave();
+                Swal.fire('完了', res.message, 'success');
+            } else Swal.fire('エラー', res.message, 'error');
+        }).saveOrSubmitDraft(data, isSubmit);
+    };
+
+    const updateEditorUI = () => {
+        const s = state.docStatus;
+        const badge = ui.statusBadge;
+        badge.className = 'badge';
+        if(s==='submitted') { badge.classList.add('bg-primary'); badge.innerText = '提出済'; }
+        else if(s==='rework') { badge.classList.add('bg-warning','text-dark'); badge.innerText = '再提出'; }
+        else if(s==='completed') { badge.classList.add('bg-success'); badge.innerText = '完了'; }
+        else { badge.classList.add('bg-secondary'); badge.innerText = '下書き'; }
+
+        const isLocked = (state.mode === 'teacher') || (s === 'submitted' || s === 'completed');
+        ui.content.readOnly = ui.title.readOnly = ui.class.readOnly = ui.name.readOnly = isLocked;
+        
+        if (state.mode === 'student') {
+            ui.controls.student.classList.remove('d-none');
+            document.getElementById('btn-save').disabled = isLocked;
+            document.getElementById('btn-submit').disabled = isLocked;
+        } else {
+            ui.controls.student.classList.add('d-none');
+        }
+        renderStudentApp();
+    };
+
+    document.getElementById('btn-save').addEventListener('click', () => handleSave(false));
+    document.getElementById('btn-submit').addEventListener('click', () => handleSave(true));
+    document.getElementById('btn-new').addEventListener('click', () => {
+        if (state.docStatus==='draft' && ui.content.value) if(!confirm('現在の内容は消去されます')) return;
+        state.currentDraftId = null; state.docStatus = 'draft'; state.corrections = [];
+        ui.title.value=''; ui.class.value=''; ui.name.value=''; ui.content.value='';
+        updateEditorUI(); autoSave();
+    });
+    document.getElementById('btn-load').addEventListener('click', () => {
+        setLoading(true);
+        google.script.run.withSuccessHandler(res => {
+            setLoading(false);
+            if(res.status==='success') {
+                if(res.data.length===0) return Swal.fire('なし', 'データがありません', 'info');
+                const listHtml = res.data.map(i => `<div class="d-flex justify-content-between p-2 border-bottom"><div>${i.title}</div><button class="btn btn-sm btn-success l-btn" data-id="${i.id}">開く</button></div>`).join('');
+                Swal.fire({ html: `<div style="max-height:300px;overflow:auto">${listHtml}</div>`, showConfirmButton:false, didOpen:()=>{
+                    Swal.getHtmlContainer().querySelectorAll('.l-btn').forEach(b => b.onclick = () => { Swal.close(); loadStudentDraft(b.dataset.id); });
+                }});
+            }
+        }).getDraftList('student');
+    });
+
+    const loadStudentDraft = (id) => {
+        setLoading(true);
+        google.script.run.withSuccessHandler(res => {
+            setLoading(false);
+            if(res.status === 'success') {
+                const d = res.data;
+                state.currentDraftId = d.id; state.docStatus = d.status || 'draft';
+                state.corrections = d.correction ? JSON.parse(d.correction) : [];
+                ui.title.value=d.title; ui.class.value=d.class; ui.name.value=d.name; ui.content.value=d.content;
+                updateEditorUI(); autoSave();
+                if((d.status==='rework'||d.status==='completed') && d.teacherCmt) Swal.fire('先生コメント', d.teacherCmt, 'info');
+            }
+        }).loadDraft(id);
+    };
+    
+    [ui.title, ui.class, ui.name, ui.content].forEach(el => el.addEventListener('input', () => { renderStudentApp(); autoSave(); }));
+
+
+    // ==========================================
+    //  Teacher Dashboard Logic
+    // ==========================================
+
+    document.getElementById('btn-teacher-login').addEventListener('click', async () => {
+        const { value: pass } = await Swal.fire({ title: '先生用ログイン', input: 'password', showCancelButton: true });
+        if (pass) {
+            setLoading(true);
+            google.script.run.withSuccessHandler(res => {
+                setLoading(false);
+                if(res.status === 'success') {
+                    state.mode = 'teacher'; state.teacherPassword = pass;
+                    state.draftsList = res.data; 
+                    document.body.classList.add('teacher-mode');
+                    ui.notificationBtn.classList.add('d-none');
+                    ui.views.editor.classList.add('d-none');
+                    ui.views.dashboard.classList.remove('d-none');
+                    renderTeacherList();
+                } else Swal.fire('失敗', res.message, 'error');
+            }).getDraftList('teacher', pass);
+        }
+    });
+
+    document.getElementById('btn-teacher-logout').addEventListener('click', () => {
+        state.mode = 'student'; state.teacherPassword = null;
+        state.draftsList = []; state.currentDraftId = null; state.docStatus = 'draft'; state.corrections = [];
+        state.selectedStudentData = null; state.selectedIndex = -1;
+        state.checkedIds = new Set();
+        ui.checkAll.checked = false;
+
+        ui.teacherGrid.innerHTML = '';
+        ui.title.value = ''; ui.class.value = ''; ui.name.value = ''; ui.content.value = '';
+        document.body.classList.remove('teacher-mode');
+        ui.views.dashboard.classList.add('d-none');
+        ui.views.editor.classList.remove('d-none');
+        restoreFromAutoSave();
+        checkReturnedAssignments();
+        updateEditorUI();
+    });
+
+    const renderTeacherList = () => {
+        const list = state.draftsList;
+        ui.teacherList.innerHTML = list.map((item, idx) => {
+            let badge = '';
+            if(item.status==='submitted') badge = '<span class="badge bg-primary">未</span>';
+            else if(item.status==='rework') badge = '<span class="badge bg-warning text-dark">再</span>';
+            else if(item.status==='completed') badge = '<span class="badge bg-success">完</span>';
+            
+            const activeClass = (idx === state.selectedIndex) ? 'active' : '';
+            const isChecked = state.checkedIds.has(item.id) ? 'checked' : '';
+            
+            return `
+            <div class="list-group-item list-group-item-action ${activeClass} d-flex align-items-start gap-2 p-2" onclick="selectTeacherListItem(${idx})">
+                <div class="pt-1" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="form-check-input select-item border-secondary" value="${item.id}" ${isChecked} onchange="toggleCheck('${item.id}')">
+                </div>
+                <div class="flex-grow-1 overflow-hidden">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <h6 class="mb-0 text-truncate fw-bold" style="max-width: 120px;">${item.name}</h6>
+                        <small>${badge}</small>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                        <p class="mb-0 text-truncate small text-muted" style="max-width: 140px;">${item.title}</p>
+                        <small class="text-muted" style="font-size:0.65em">${item.updatedAt.split(' ')[1] || item.updatedAt}</small>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+        
+        if (list.length > 0 && state.checkedIds.size === list.length) {
+            ui.checkAll.checked = true;
+            ui.checkAll.indeterminate = false;
+        } else if (state.checkedIds.size > 0) {
+            ui.checkAll.checked = false;
+            ui.checkAll.indeterminate = true;
+        } else {
+            ui.checkAll.checked = false;
+            ui.checkAll.indeterminate = false;
+        }
+    };
+
+    window.selectTeacherListItem = (idx) => {
+        state.selectedIndex = idx;
+        state.selectedStudentData = state.draftsList[idx];
+        renderTeacherList(); 
+        const d = state.selectedStudentData;
+        ui.previewInfo.innerHTML = `${d.class} ${d.name} 「${d.title}」`;
+        ui.btnRework.classList.remove('disabled');
+        ui.btnComplete.classList.remove('disabled');
+        renderTeacherApp();
+    };
+
+    window.toggleCheck = (id) => {
+        if (state.checkedIds.has(id)) {
+            state.checkedIds.delete(id);
+        } else {
+            state.checkedIds.add(id);
+        }
+        renderTeacherList(); 
+    };
+
+    ui.checkAll.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        if (isChecked) {
+            state.draftsList.forEach(item => state.checkedIds.add(item.id));
+        } else {
+            state.checkedIds.clear();
+        }
+        renderTeacherList();
+    });
+
+    const clearSelectionHighlight = () => {
+        const cells = ui.teacherGrid.querySelectorAll('.genko-cell.selecting');
+        cells.forEach(cell => cell.classList.remove('selecting'));
+        state.isDragging = false;
+        state.dragStartIdx = null;
+        state.dragEndIdx = null;
+    };
+
+    document.getElementById('correctionModal').addEventListener('hidden.bs.modal', () => {
+        clearSelectionHighlight();
+    });
+
+    ui.teacherGrid.addEventListener('mousedown', (e) => {
+        const cell = e.target.closest('.genko-cell');
+        if(!cell || !cell.dataset.idx) return;
+        state.isDragging = true;
+        state.dragStartIdx = parseInt(cell.dataset.idx);
+        state.dragEndIdx = state.dragStartIdx;
+        highlightSelection();
+    });
+
+    ui.teacherGrid.addEventListener('mousemove', (e) => {
+        if(!state.isDragging) return;
+        const cell = e.target.closest('.genko-cell');
+        if(!cell || !cell.dataset.idx) return;
+        state.dragEndIdx = parseInt(cell.dataset.idx);
+        highlightSelection();
+    });
+
+    ui.teacherGrid.addEventListener('mouseup', (e) => {
+        if(!state.isDragging) return;
+        state.isDragging = false;
+        showCorrectionModal();
+    });
+    
+    const highlightSelection = () => {
+        const start = Math.min(state.dragStartIdx, state.dragEndIdx);
+        const end = Math.max(state.dragStartIdx, state.dragEndIdx);
+        const cells = ui.teacherGrid.querySelectorAll('.genko-cell[data-idx]');
+        cells.forEach(cell => {
+            const idx = parseInt(cell.dataset.idx);
+            if (idx >= start && idx <= end) {
+                cell.classList.add('selecting');
+            } else {
+                cell.classList.remove('selecting');
+            }
+        });
+    };
+    
+    const showCorrectionModal = () => {
+        const modalEl = document.getElementById('correctionModal');
+        let modal = bootstrap.Modal.getInstance(modalEl);
+        if (!modal) {
+            modal = new bootstrap.Modal(modalEl);
+        }
+        document.getElementById('correction-text').value = ''; 
+        modal.show();
+    };
+
+    document.getElementById('btn-save-correction').addEventListener('click', () => {
+        const text = document.getElementById('correction-text').value;
+        if (!text) return;
+        
+        const start = Math.min(state.dragStartIdx, state.dragEndIdx);
+        const end = Math.max(state.dragStartIdx, state.dragEndIdx) + 1; 
+
+        state.corrections.push({ start, end, comment: text });
+        
+        const modal = bootstrap.Modal.getInstance(document.getElementById('correctionModal'));
+        if (modal) modal.hide();
+        
+        renderTeacherApp(); 
+    });
+
+    const submitTeacherEvaluation = (newStatus) => {
+        const d = state.selectedStudentData;
+        if (!d) return;
+        ui.previewInfo.innerHTML = '<span class="text-primary"><i class="spinner-border spinner-border-sm"></i> 保存中...</span>';
+        
+        const data = {
+            id: d.id, title: d.title, class: d.class, name: d.name, content: d.content,
+            correction: JSON.stringify(state.corrections), status: newStatus
+        };
+
+        google.script.run.withSuccessHandler(res => {
+            if(res.status === 'success') {
+                state.draftsList[state.selectedIndex].status = newStatus;
+                state.draftsList[state.selectedIndex].correction = data.correction;
+                
+                if (newStatus === 'completed') {
+                    state.checkedIds.add(d.id);
+                }
+                
+                const nextIdx = state.selectedIndex + 1;
+                if (nextIdx < state.draftsList.length) {
+                    selectTeacherListItem(nextIdx);
+                    const nextEl = ui.teacherList.children[nextIdx];
+                    if(nextEl) nextEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+                } else {
+                    Swal.fire('完了', '全てのリストを確認しました', 'success');
+                    renderTeacherList(); 
+                }
+            } else Swal.fire('エラー', res.message, 'error');
+        }).saveOrSubmitDraft(data, true);
+    };
+
+    ui.btnRework.onclick = () => submitTeacherEvaluation('rework');
+    ui.btnComplete.onclick = () => submitTeacherEvaluation('completed');
+
+    document.getElementById('btn-refresh-list').addEventListener('click', () => {
+        if(!state.teacherPassword) return;
+        setLoading(true);
+        google.script.run.withSuccessHandler(res => {
+            setLoading(false);
+            if(res.status==='success') {
+                state.draftsList = res.data;
+                state.selectedIndex = -1;
+                state.selectedStudentData = null;
+                ui.teacherGrid.innerHTML = '';
+                ui.previewInfo.innerHTML = 'リストから選択してください';
+                renderTeacherList();
+            }
+        }).getDraftList('teacher', state.teacherPassword);
+    });
+
+    // --- 印刷機能 (生徒・先生共通) ---
+    const executePrint = (docs) => {
+        ui.printArea.innerHTML = '';
+        const chars = state.charsPerLine;
+        const linesPerPage = chars === 20 ? 20 : 16;
+        const halfLines = linesPerPage / 2;
+        const fontSize = chars === 20 ? '16pt' : '20pt';
+
+        docs.forEach(doc => {
+            const header = generateHeaderLines(doc.title, doc.class, doc.name, chars);
+            const body = parseBodyWithIndex(doc.content, chars);
+            const all = [...header, ...body];
+            const pages = Math.ceil(all.length / linesPerPage) || 1;
+
+            for(let p=0; p<pages; p++) {
+                const pageLines = all.slice(p*linesPerPage, (p+1)*linesPerPage);
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'print-page';
+                const gridLayout = document.createElement('div');
+                gridLayout.className = 'print-layout-grid';
+
+                const rightGrid = document.createElement('div');
+                rightGrid.className = 'print-half-grid right-side';
+                for(let i=0; i < halfLines; i++) {
+                    const lineData = pageLines[i] || [];
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'print-line';
+                    for(let j=0; j<chars; j++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'print-cell';
+                        cell.style.fontSize = fontSize;
+                        cell.textContent = (lineData[j]||{}).c || '';
+                        if(j===chars-1 && lineData.length > chars) { 
+                            const h = document.createElement('div');
+                            h.className = 'hanging-chars-print';
+                            h.textContent = lineData.slice(chars).map(d=>d.c).join('');
+                            cell.appendChild(h);
+                        }
+                        lineDiv.appendChild(cell);
+                    }
+                    rightGrid.appendChild(lineDiv);
+                }
+
+                const gyobiArea = document.createElement('div');
+                gyobiArea.className = 'print-gyobi-area';
+                gyobiArea.innerHTML = `<div class="gyobi-content"><div class="gyobi-mark"></div><div>${(doc.title||'').substring(0,8)}</div><div style="font-size:0.8em; margin-top:5mm;">${p+1}</div></div>`;
+
+                const leftGrid = document.createElement('div');
+                leftGrid.className = 'print-half-grid left-side';
+                for(let i=halfLines; i < linesPerPage; i++) {
+                    const lineData = pageLines[i] || [];
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'print-line';
+                    for(let j=0; j<chars; j++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'print-cell';
+                        cell.style.fontSize = fontSize;
+                        cell.textContent = (lineData[j]||{}).c || '';
+                        if(j===chars-1 && lineData.length > chars) {
+                            const h = document.createElement('div');
+                            h.className = 'hanging-chars-print';
+                            h.textContent = lineData.slice(chars).map(d=>d.c).join('');
+                            cell.appendChild(h);
+                        }
+                        lineDiv.appendChild(cell);
+                    }
+                    leftGrid.appendChild(lineDiv);
+                }
+                gridLayout.appendChild(leftGrid);
+                gridLayout.appendChild(gyobiArea);
+                gridLayout.appendChild(rightGrid);
+                pageDiv.appendChild(gridLayout);
+                ui.printArea.appendChild(pageDiv);
+            }
+        });
+        setTimeout(() => window.print(), 500);
+    };
+
+    // 生徒用印刷ボタン
+    document.getElementById('btn-print').addEventListener('click', () => {
+        executePrint([{
+            title: ui.title.value,
+            class: ui.class.value,
+            name: ui.name.value,
+            content: ui.content.value
+        }]);
+    });
+
+    // 先生用一括印刷ボタン
+    document.getElementById('btn-bulk-print').addEventListener('click', () => {
+        // state.checkedIds から選択されたものを抽出
+        if (state.checkedIds.size === 0) return Swal.fire('エラー', '印刷する作文を選んでください', 'warning');
+        
+        const selectedDocs = state.draftsList.filter(d => state.checkedIds.has(d.id));
+        executePrint(selectedDocs);
+    });
+
+    restoreFromAutoSave();
+    checkReturnedAssignments();
+    updateEditorUI();
+});
+</script>
