@@ -6,49 +6,164 @@
         --paper-color: #fdfbf7;
         --line-color: rgba(46, 125, 50, 0.4);
         --line-strong: rgba(46, 125, 50, 0.8);
-        --correction-bg: rgba(255, 0, 0, 0.1); /* 添削箇所の背景 */
-        --correction-border: 2px solid #d93025; /* 添削の赤線 */
-        --selecting-bg: rgba(255, 235, 59, 0.5); /* 選択中の背景（黄色） */
+        --correction-bg: rgba(255, 0, 0, 0.1);
+        --selecting-bg: rgba(255, 235, 59, 0.5);
     }
 
-    body { font-family: "Zen Maru Gothic", sans-serif; background-color: var(--bg-color); height: 100vh; overflow: hidden; color: #333; }
+    /* 画面全体をFlexboxにして、高さを自動調整する */
+    body { 
+        font-family: "Zen Maru Gothic", sans-serif; 
+        background-color: var(--bg-color); 
+        color: #333;
+        height: 100vh; /* 画面いっぱいの高さ */
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* 画面全体のスクロール禁止 */
+    }
     
+    rt { font-size: 0.6em; color: #666; }
+    ruby { ruby-align: center; }
+
+    /* Teacher Mode */
     body.teacher-mode { --primary-color: var(--teacher-color); }
-    body.teacher-mode .navbar { border-bottom: 3px solid var(--teacher-color); }
+    body.teacher-mode .navbar { border-bottom: 3px solid var(--teacher-color) !important; }
+    body.teacher-mode .icon-wrapper { background-color: var(--teacher-color) !important; }
+    body.teacher-mode .text-primary { color: var(--teacher-color) !important; }
 
-    .navbar { background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
-    .main-container { height: calc(100vh - 60px - 30px); padding: 20px 0; }
+    /* Navbar & Footer */
+    .navbar { flex-shrink: 0; z-index: 1030; }
+    footer { flex-shrink: 0; z-index: 1030; }
+
+    /* Main Container: ヘッダーとフッターの間を埋める */
+    .main-container { 
+        flex-grow: 1; 
+        padding: 20px 0; 
+        overflow: hidden; /* コンテナ自体はスクロールしない */
+        min-height: 0; /* Flexアイテムの縮小を許可 */
+    }
+    body.teacher-mode .main-container { padding: 0; }
+
+    /* Cards - 左パネルのカード */
+    .card { 
+        transition: box-shadow 0.3s ease; 
+        height: 100%; 
+        border: none; 
+        /* 縦並びFlexにして中身の配置を制御 */
+        display: flex; 
+        flex-direction: column; 
+        overflow: hidden;
+    }
     
-    /* 先生モード時のコンテナ余白調整 */
-    body.teacher-mode .main-container { padding: 0; height: calc(100vh - 60px); }
+    /* カードの中身（Bootstrapのクラスがある場合もない場合も対応） */
+    .card-body, .card > div:not(.card-header):not(.card-footer) {
+        flex: 1; /* 残りの高さを埋める */
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* 中身がはみ出してもカード自体は伸ばさない */
+        height: 100%;
+        min-height: 0; /* 重要: Flexアイテムの縮小バグ防止 */
+    }
+    /* index.htmlの構造に合わせてパディング調整 */
+    .card-body { padding: 1.5rem; }
+    .card.p-3 { padding: 1rem !important; } /* Bootstrapのp-3クラスがあれば優先 */
 
-    .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); height: 100%; display: flex; flex-direction: column; }
+    /* 入力エリアのラッパー（残りの高さを全て使う） */
+    .input-area-wrapper {
+        /* flex-grow: 1, flex-shrink: 1, flex-basis: 0 */
+        /* これにより、中身の量に関わらず「残りのスペース」を強制的に確保する */
+        flex: 1 1 0; 
+        margin-bottom: 1rem; /* 下のボタンとの余白 */
+        position: relative;
+        background-color: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        overflow: hidden; /* はみ出し防止 */
+        display: flex; 
+        flex-direction: column;
+        min-height: 100px; /* 最低限の高さを確保 */
+    }
 
-    /* ステータスバッジ */
-    .status-badge { font-size: 0.7em; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
-    .status-draft { background: #eee; color: #555; }
-    .status-submitted { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
-    .status-rework { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
-    .status-completed { background: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
-    .status-returned { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
-
-    /* リストアイテム */
-    .list-group-item { cursor: pointer; border-left: 4px solid transparent; transition: background 0.2s; }
-    .list-group-item:hover { background-color: #f8f9fa; }
-    .list-group-item.active { background-color: #fff3cd; color: inherit; border-color: #ffc107; border-left-width: 4px; }
-
-    /* 原稿用紙 (共通) */
-    .preview-area { background: #e9ecef; border-radius: 12px; overflow: auto; display: flex; align-items: center; padding: 20px; direction: rtl; }
-    /* 先生用プレビューエリアの微調整 */
-    #teacher-dashboard .preview-area { border-radius: 0; height: 100%; align-items: start; padding-top: 40px; }
-
-    #paper-wrapper, #teacher-paper-wrapper { margin: 0 auto; flex-shrink: 0; position: relative; }
-    #paper-scaler, #teacher-paper-scaler { transform-origin: top right; transition: transform 0.3s ease-out; position: absolute; top: 0; right: 0; }
+    .input-area-wrapper textarea { 
+        flex: 1; /* 親の高さに合わせて広がる */
+        width: 100%;
+        height: 100%;
+        border: none;
+        resize: none; /* ユーザーによるリサイズ禁止 */
+        padding: 20px;
+        font-size: 1.1rem; 
+        line-height: 2rem; 
+        background-image: linear-gradient(#f1f5f9 1px, transparent 1px); 
+        background-size: 100% 2rem; 
+        outline: none;
+        overflow-y: auto !important; /* ここだけでスクロールさせる */
+    }
+    .input-area-wrapper textarea:focus { outline: none; background-color: #fff; }
     
-    .paper-sheet { background: var(--paper-color); padding: 40px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); width: fit-content; min-width: 600px; display: flex; direction: ltr; }
+    .status-badge { font-size: 0.7em; padding: 4px 8px; font-weight: bold; }
 
-    .genko-grid-wrapper { display: flex; flex-direction: row-reverse; }
-    .genko-line { display: flex; flex-direction: column; border-left: 1px solid var(--line-color); }
+    .list-group-item { cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; }
+    .list-group-item:hover { background-color: #f1f3f4; }
+    .list-group-item.active { background-color: #e8f0fe; color: #1967d2; border-color: #1967d2; border-left-width: 4px; border-radius: 4px; }
+
+    /* Preview Area */
+    .preview-area { 
+        background: #e9ecef; 
+        overflow: auto; /* はみ出たらスクロール */
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        padding: 20px; 
+        direction: rtl; 
+        height: 100%;
+        position: relative;
+    }
+    
+    #teacher-dashboard .preview-area { padding-top: 50px; align-items: flex-start; }
+
+    /* 拡大縮小のためのラッパー */
+    #paper-wrapper, #teacher-paper-wrapper { 
+        margin: 0 auto; 
+        flex-shrink: 0; 
+        position: relative; 
+        /* 初期状態で見えなくならないよう最低サイズを確保 */
+        min-width: 100px; 
+        min-height: 100px;
+    }
+    #paper-scaler, #teacher-paper-scaler { 
+        transform-origin: top right; /* 右上基準で拡大縮小 */
+        transition: transform 0.3s ease-out; 
+        position: absolute; 
+        top: 0; right: 0; 
+    }
+    
+    /* 原稿用紙本体 */
+    .paper-sheet { 
+        background: var(--paper-color); 
+        padding: 40px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        /* 中身がなくても潰れないように固定サイズに近い指定をする */
+        width: max-content; 
+        min-width: 600px; 
+        min-height: 400px;
+        display: flex; 
+        direction: ltr; 
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .genko-grid-wrapper { 
+        display: flex; 
+        flex-direction: row-reverse; 
+        gap: 0;
+        height: 100%; 
+    }
+
+    .genko-line { 
+        display: flex; 
+        flex-direction: column; 
+        border-left: 1px solid var(--line-color); 
+        flex-shrink: 0; 
+    }
     .genko-line:first-child { border-right: 1px solid var(--line-strong); }
     .genko-line { border-left: 1px solid var(--line-strong); }
 
@@ -62,29 +177,53 @@
         border-bottom: 1px solid var(--line-color); 
         position: relative; 
         cursor: text;
-        user-select: none; /* ドラッグ選択の実装のため標準選択を無効化 */
+        user-select: none;
+        flex-shrink: 0;
+        color: #2c3e50;
     }
     .genko-cell:first-child { border-top: 1px solid var(--line-strong); }
     .genko-cell:last-child { border-bottom: 1px solid var(--line-strong); }
 
     .hanging-char { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; writing-mode: vertical-rl; font-size: 0.7em; margin-top: 0.1em; pointer-events: none; }
 
-    /* 添削スタイル */
     .genko-cell.corrected { background-color: var(--correction-bg); cursor: pointer; }
-    .genko-cell.corrected::after { content: ''; position: absolute; top: 0; right: 2px; bottom: 0; width: 2px; background-color: var(--teacher-color); border-radius: 2px; pointer-events: none; }
-    
-    /* 【New】選択中のハイライト */
+    .genko-cell.corrected::after { content: ''; position: absolute; top: 0; right: 2px; bottom: 0; width: 3px; background-color: var(--teacher-color); border-radius: 2px; pointer-events: none; }
     .genko-cell.selecting { background-color: var(--selecting-bg) !important; }
 
-    .input-area-wrapper { flex-grow: 1; position: relative; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
-    #content { width: 100%; height: 100%; border: none; resize: none; padding: 20px; font-size: 1.1rem; line-height: 2rem; background-image: linear-gradient(#f1f5f9 1px, transparent 1px); background-size: 100% 2rem; outline: none; }
+    #loading-overlay { 
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background: rgba(255,255,255,0.8); 
+        z-index: 9999; 
+        display: none; 
+        flex-direction: column; 
+        justify-content: center; 
+        align-items: center; 
+        backdrop-filter: blur(5px);
+    }
 
-    #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; }
+    /* 印刷用レンダリングエリア（通常時は非表示・レイアウト影響なし） */
+    #print-render-area {
+        display: none;
+    }
 
     @media print {
-        body * { visibility: hidden; }
-        #print-render-area, #print-render-area * { visibility: visible; }
-        #print-render-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+        /* body直下の要素のうち、印刷エリア以外を非表示にする */
+        body > *:not(#print-render-area) {
+            display: none !important;
+        }
+
+        /* 印刷エリアを表示 */
+        #print-render-area { 
+            display: block !important; 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            margin: 0; 
+            padding: 0; 
+            background: white;
+        }
+
         @page { size: A4 landscape; margin: 0; }
         .print-page { width: 297mm; height: 210mm; page-break-after: always; position: relative; font-family: "Zen Old Mincho", serif; background: white; padding: 10mm; box-sizing: border-box; }
         .print-layout-grid { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 16mm 1fr; border: 2px solid #2e7d32; }
@@ -95,6 +234,5 @@
         .print-line { flex: 1; display: flex; flex-direction: column; border-left: 1px solid rgba(46,125,50,0.4); }
         .print-cell { flex: 1; border-bottom: 1px solid rgba(46,125,50,0.4); display: flex; align-items: center; justify-content: center; position: relative; writing-mode: vertical-rl; text-orientation: mixed; }
         .hanging-chars-print { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; writing-mode: vertical-rl; font-size: 0.6em; margin-top: -2mm; line-height: 1; }
-        .print-cell.corrected { border-right: 2px solid #d93025; }
     }
 </style>
