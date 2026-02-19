@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <base target="_top">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>オンライン原稿用紙 Pro</title>
-    
+
     <!-- CSS Libraries -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Zen+Old+Mincho:wght@400;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Zen+Old+Mincho:wght@400;700&display=swap"
+        rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-material-ui/material-ui.min.css" rel="stylesheet">
 
     <!-- Diff Match Patch Library (修正履歴の追跡用) -->
@@ -17,23 +20,26 @@
 
     <?!= include('css'); ?>
 </head>
+
 <body class="d-flex flex-column">
 
     <!-- ヘッダー -->
     <nav class="navbar sticky-top bg-white border-bottom shadow-sm">
         <div class="container-fluid px-4">
             <a class="navbar-brand d-flex align-items-center" href="#" onclick="location.reload()">
-                <div class="icon-wrapper bg-primary text-white rounded-circle p-2 d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                <div class="icon-wrapper bg-primary text-white rounded-circle p-2 d-flex align-items-center justify-content-center me-2"
+                    style="width: 40px; height: 40px;">
                     <i class="bi bi-pencil-square fs-5"></i>
                 </div>
                 <div class="lh-1">
-                    <span class="fw-bold text-primary">オンライン<ruby>原稿<rt>げんこう</rt></ruby><ruby>用紙<rt>ようし</rt></ruby></span>
+                    <span class="fw-bold text-primary">オンライン<ruby>原稿<rt>げんこう</rt></ruby><ruby>用紙<rt>ようし</rt>
+                        </ruby></span>
                     <span class="badge bg-primary ms-1 rounded-pill">Pro</span>
                 </div>
             </a>
             <div class="d-flex align-items-center gap-2">
                 <span id="user-info-display" class="small text-muted fw-bold me-2"></span>
-                
+
                 <!-- 設定ボタン -->
                 <button class="btn btn-sm btn-outline-secondary rounded-circle p-2" id="btn-settings" title="用紙設定">
                     <i class="bi bi-gear-fill"></i>
@@ -48,7 +54,7 @@
 
     <!-- メインコンテナ -->
     <div class="container-fluid main-container flex-grow-1">
-        
+
         <!-- 【A】児童用ビュー (デフォルト) -->
         <div id="editor-view" class="row h-100 g-4">
             <!-- 左: 入力パネル -->
@@ -57,8 +63,11 @@
                     <div class="card-body d-flex flex-column p-4">
                         <div class="mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label class="small text-primary fw-bold"><i class="bi bi-info-circle me-1"></i><ruby>基本<rt>きほん</rt></ruby><ruby>情報<rt>じょうほう</rt></ruby></label>
-                                <span id="doc-status-display" class="badge bg-secondary rounded-pill px-3"><ruby>下書<rt>したが</rt></ruby>き</span>
+                                <label class="small text-primary fw-bold"><i class="bi bi-info-circle me-1"></i><ruby>基本
+                                        <rt>きほん</rt>
+                                    </ruby><ruby>情報<rt>じょうほう</rt></ruby></label>
+                                <span id="doc-status-display" class="badge bg-secondary rounded-pill px-3"><ruby>下書<rt>
+                                            したが</rt></ruby>き</span>
                             </div>
                             <div class="form-floating mb-2">
                                 <input type="text" id="title" class="form-control fw-bold" placeholder="題名">
@@ -80,8 +89,14 @@
                             </div>
                         </div>
 
-                        <div class="input-area-wrapper flex-grow-1 mb-4 position-relative border rounded-3 overflow-hidden">
-                            <textarea id="content" class="form-control border-0 h-100 p-3" placeholder="ここに作文を書いてください..."></textarea>
+                        <div
+                            class="input-area-wrapper flex-grow-1 mb-2 position-relative border rounded-3 overflow-hidden">
+                            <textarea id="content" class="form-control border-0 h-100 p-3"
+                                placeholder="ここに作文を書いてください..."></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end mb-3">
+                            <small id="char-counter" class="text-muted"><span id="char-count">0</span> <ruby>文字<rt>もじ
+                                    </rt></ruby></small>
                         </div>
 
                         <!-- 生徒用ボタン -->
@@ -94,18 +109,21 @@
                                 </div>
                                 <div class="col-6">
                                     <button class="btn btn-outline-primary w-100 py-2 rounded-3" id="btn-load">
-                                        <i class="bi bi-folder2-open me-1"></i> <ruby>読<rt>よ</rt></ruby>み<ruby>込<rt>こ</rt></ruby>み
+                                        <i class="bi bi-folder2-open me-1"></i> <ruby>読<rt>よ</rt></ruby>み<ruby>込<rt>こ
+                                            </rt></ruby>み
                                     </button>
                                 </div>
                             </div>
                             <div class="row g-2">
                                 <div class="col-6">
-                                    <button class="btn btn-primary w-100 py-2 rounded-3 fw-bold shadow-sm" id="btn-save">
+                                    <button class="btn btn-primary w-100 py-2 rounded-3 fw-bold shadow-sm"
+                                        id="btn-save">
                                         <i class="bi bi-save me-1"></i> <ruby>保存<rt>ほぞん</rt></ruby>
                                     </button>
                                 </div>
                                 <div class="col-6">
-                                    <button class="btn btn-danger w-100 py-2 rounded-3 fw-bold shadow-sm" id="btn-submit">
+                                    <button class="btn btn-danger w-100 py-2 rounded-3 fw-bold shadow-sm"
+                                        id="btn-submit">
                                         <i class="bi bi-send-fill me-1"></i> <ruby>提出<rt>ていしゅつ</rt></ruby>
                                     </button>
                                 </div>
@@ -123,7 +141,9 @@
                 <div class="card preview-area shadow-sm border-0 h-100" id="paper-container">
                     <div id="paper-wrapper">
                         <div id="paper-scaler">
-                            <div class="paper-sheet" id="paper-sheet"><div id="genko-grid" class="genko-grid-wrapper"></div></div>
+                            <div class="paper-sheet" id="paper-sheet">
+                                <div id="genko-grid" class="genko-grid-wrapper"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -133,12 +153,13 @@
         <!-- 【B】教師用ダッシュボード -->
         <div id="teacher-dashboard" class="h-100 d-none">
             <div class="row h-100 g-0 shadow-sm rounded-3 overflow-hidden bg-white border">
-                
+
                 <!-- 左ペイン: リスト -->
                 <div class="col-md-3 h-100 border-end d-flex flex-column bg-light">
                     <div class="p-3 border-bottom bg-white">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="m-0 text-danger fw-bold"><i class="bi bi-speedometer2 me-1"></i> <ruby>管理<rt>かんり</rt></ruby><ruby>画面<rt>がめん</rt></ruby></h6>
+                            <h6 class="m-0 text-danger fw-bold"><i class="bi bi-speedometer2 me-1"></i> <ruby>管理<rt>かんり
+                                    </rt></ruby><ruby>画面<rt>がめん</rt></ruby></h6>
                             <button class="btn btn-sm btn-outline-secondary" id="btn-teacher-logout">ログアウト</button>
                         </div>
                         <div class="d-flex gap-2 align-items-center">
@@ -147,6 +168,9 @@
                             </div>
                             <button class="btn btn-sm btn-outline-primary flex-grow-1" id="btn-refresh-list">
                                 <i class="bi bi-arrow-clockwise me-1"></i> <ruby>更新<rt>こうしん</rt></ruby>
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" id="btn-bulk-complete" title="チェックしたものを一括完了">
+                                <i class="bi bi-check2-all"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-success" id="btn-bulk-print" title="チェックしたものを一括印刷">
                                 <i class="bi bi-printer"></i>
@@ -163,16 +187,20 @@
                 <!-- 右ペイン: プレビュー & 評価 -->
                 <div class="col-md-9 h-100 d-flex flex-column">
                     <!-- ツールバー -->
-                    <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center" style="z-index: 10;">
+                    <div
+                        class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center toolbar-panel">
                         <div id="preview-info" class="fw-bold px-2 text-muted small">
                             リストから<ruby>選択<rt>せんたく</rt></ruby>してください
                         </div>
                         <div class="d-flex gap-2" id="teacher-action-buttons">
-                            <button class="btn btn-sm btn-outline-danger disabled rounded-pill px-3" id="btn-action-rework">
+                            <button class="btn btn-sm btn-outline-danger disabled rounded-pill px-3"
+                                id="btn-action-rework">
                                 <ruby>再<rt>さい</rt></ruby><ruby>提出<rt>ていしゅつ</rt></ruby>
                             </button>
-                            <button class="btn btn-sm btn-success fw-bold disabled rounded-pill px-3" id="btn-action-complete">
-                                <ruby>完了<rt>かんりょう</rt></ruby>(<ruby>合格<rt>ごうかく</rt></ruby>)にして<ruby>次<rt>つぎ</rt></ruby>へ &gt;
+                            <button class="btn btn-sm btn-success fw-bold disabled rounded-pill px-3"
+                                id="btn-action-complete">
+                                <ruby>完了<rt>かんりょう</rt></ruby>(<ruby>合格<rt>ごうかく</rt></ruby>)にして<ruby>次<rt>つぎ</rt></ruby>へ
+                                &gt;
                             </button>
                         </div>
                     </div>
@@ -186,8 +214,10 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="position-absolute top-0 start-0 m-3 p-3 bg-white shadow rounded-3 small text-muted border">
-                            <i class="bi bi-info-circle-fill text-primary me-1"></i> <ruby>文字<rt>もじ</rt></ruby>をドラッグしてコメント
+                        <div
+                            class="position-absolute top-0 start-0 m-3 p-3 bg-white shadow rounded-3 small text-muted border">
+                            <i class="bi bi-info-circle-fill text-primary me-1"></i> <ruby>文字<rt>もじ</rt>
+                            </ruby>をドラッグしてコメント
                         </div>
                     </div>
                 </div>
@@ -196,8 +226,9 @@
     </div>
 
     <!-- 固定フッター (GIGA Standard) -->
-    <footer class="text-center text-muted py-3 mt-4 border-top bg-white">
-        <small>© 2026 オンライン原稿用紙 Pro <a href="https://note.com/cute_borage86" target="_blank" class="text-decoration-none text-muted">GIGA山</a></small>
+    <footer class="text-center text-muted py-3 border-top bg-white">
+        <small>© 2026 オンライン原稿用紙 Pro <a href="https://note.com/cute_borage86" target="_blank"
+                class="text-decoration-none text-muted">GIGA山</a></small>
     </footer>
 
     <!-- ローディング -->
@@ -205,7 +236,7 @@
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
         <div class="mt-3 fw-bold text-dark fs-5"><ruby>処理<rt>しょり</rt></ruby><ruby>中<rt>ちゅう</rt></ruby>です...</div>
     </div>
-    
+
     <!-- 印刷用レンダリングエリア -->
     <div id="print-render-area"></div>
 
@@ -222,7 +253,8 @@
                 </div>
                 <div class="modal-footer py-2 bg-light">
                     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="button" class="btn btn-sm btn-danger px-4" id="btn-save-correction"><ruby>決定<rt>けってい</rt></ruby></button>
+                    <button type="button" class="btn btn-sm btn-danger px-4" id="btn-save-correction"><ruby>決定<rt>けってい
+                            </rt></ruby></button>
                 </div>
             </div>
         </div>
@@ -234,4 +266,5 @@
     <?!= include('js'); ?>
 
 </body>
+
 </html>

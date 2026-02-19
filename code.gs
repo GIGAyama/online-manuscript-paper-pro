@@ -1,10 +1,30 @@
 /**
  * オンライン原稿用紙 Pro - GIGA Edition
- * バージョン: 2.4.0
+ * バージョン: 2.5.0
+ *
+ * 【管理者向け設定方法】
+ * 教師パスワードはスクリプトプロパティで管理します。
+ * 初回は自動で 'admin' が設定されます。変更する場合:
+ *   GASエディタ → プロジェクト設定 → スクリプトプロパティ
+ *   → TEACHER_PASSWORD の値を書き換えてください。
  */
 
 const SHEET_NAME = '作文データ';
-const TEACHER_PASSWORD = 'admin'; // 運用に合わせて変更してください
+const DEFAULT_PASSWORD = 'admin'; // 初回デフォルト値
+
+/**
+ * 教師パスワードをスクリプトプロパティから取得する
+ * プロパティが未設定の場合は DEFAULT_PASSWORD を設定して返す
+ */
+function getTeacherPassword_() {
+  const props = PropertiesService.getScriptProperties();
+  let pw = props.getProperty('TEACHER_PASSWORD');
+  if (!pw) {
+    props.setProperty('TEACHER_PASSWORD', DEFAULT_PASSWORD);
+    pw = DEFAULT_PASSWORD;
+  }
+  return pw;
+}
 
 // カラム定義
 const COLUMNS = {
@@ -183,7 +203,7 @@ function saveOrSubmitDraft(draftData, isSubmit = false) {
 
 function getDraftList(mode = 'student', password = '', criteria = null) {
   try {
-    if (mode === 'teacher' && password !== TEACHER_PASSWORD) return { status: 'error', message: 'パスワードが違います。' };
+    if (mode === 'teacher' && password !== getTeacherPassword_()) return { status: 'error', message: 'パスワードが違います。' };
 
     const props = PropertiesService.getScriptProperties();
     const ss = SpreadsheetApp.openById(props.getProperty('SPREADSHEET_ID'));
@@ -305,12 +325,16 @@ function hasGeminiKey() {
 
 /**
  * Gemini APIを使って作文を添削する
+ * @param {string} title - 作文の題名
+ * @param {string} grade - 学年・クラス
+ * @param {string} content - 作文本文
+ * @returns {Array} 添削データの配列 [{quote, comment}, ...]
  */
 function analyzeEssayWithGemini(title, grade, content) {
   const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error('APIキーが設定されていません。設定画面からキーを保存してください。');
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${apiKey}`;
   
   const systemPrompt = `
 あなたは日本の公立小学校のベテラン教師です。
