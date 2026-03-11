@@ -14,6 +14,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Zen+Old+Mincho:wght@400;700&family=Shippori+Mincho:wght@400;700&display=swap" rel="stylesheet">
   
+  <!-- PeerJS (P2P通信用) -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
   <!-- React & Babel & Diff Match Patch & SweetAlert2 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/diff_match_patch/20121119/diff_match_patch.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -36,22 +39,28 @@
                     sans: ['"Zen Maru Gothic"', 'sans-serif'],
                     genko: ['"Shippori Mincho"', '"Zen Old Mincho"', 'serif'],
                     serif: ['"Shippori Mincho"', '"Zen Old Mincho"', 'serif'],
+                },
+                transitionProperty: {
+                    'height': 'height',
+                    'spacing': 'margin, padding',
                 }
             }
         }
     }
   </script>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden selection:bg-blue-200">
+<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col overflow-hidden selection:bg-blue-200 selection:text-blue-900">
   <div id="root" class="h-full flex flex-col"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo, useCallback, memo } = React;
 
+    const TEACHER_DB_KEY = 'genko_pro_teacher_db_v3';
+    const STUDENT_DB_KEY = 'genko_pro_student_db_v3';
+    const CLIENT_ID_KEY = 'genko_pro_client_id_v3';
     const SETTINGS_KEY = 'genko_pro_settings_v4';
     const AUTOSAVE_KEY = 'genko_pro_autosave_v4';
     const READ_RECEIPTS_KEY = 'genko_pro_read_receipts_v4';
-    const OFFLINE_QUEUE_KEY = 'genko_pro_offline_queue_v4'; // オフラインキュー用
 
     const GLOBAL_STYLES = `
       @media print {
@@ -68,8 +77,8 @@
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
       
-      @keyframes modalFadeIn { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
-      .animate-modal { animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      @keyframes modalFadeIn { 0% { opacity: 0; transform: translateY(15px) scale(0.98); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+      .animate-modal { animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       
       @keyframes toastFadeIn { 0% { opacity: 0; transform: translate(-50%, 20px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
       .animate-toast { animation: toastFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -77,7 +86,6 @@
       @keyframes miniToastFadeIn { 0% { opacity: 0; transform: translateX(20px); } 100% { opacity: 1; transform: translateX(0); } }
       .animate-minitoast { animation: miniToastFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-      /* 原稿用紙用スタイル */
       .lined-textarea {
           background-image: linear-gradient(#f8fafc 1px, transparent 1px);
           background-size: 100% 2.2rem;
@@ -85,108 +93,57 @@
           padding: 0.5rem 1rem;
       }
       
-      /* ドラッグ選択時のハイライトクラス (React state外でDOM制御するため) */
       .cell-highlighted { background-color: rgba(254, 240, 138, 0.6) !important; }
       
-      /* 印刷用CSS */
       @media print {
-        .print-page {
-            width: 297mm; height: 210mm; page-break-after: always;
-            position: relative; box-sizing: border-box; padding: 10mm; background: white;
-        }
-        .print-layout-grid {
-            width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 16mm 1fr; border: 2px solid #2e7d32;
-        }
-        .print-gyobi-area {
-            border-left: 1px solid #2e7d32; border-right: 1px solid #2e7d32;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; color: #2e7d32;
-        }
+        .print-page { width: 297mm; height: 210mm; page-break-after: always; position: relative; box-sizing: border-box; padding: 10mm; background: white; }
+        .print-layout-grid { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 16mm 1fr; border: 2px solid #2e7d32; }
+        .print-gyobi-area { border-left: 1px solid #2e7d32; border-right: 1px solid #2e7d32; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #2e7d32; }
         .gyobi-content { writing-mode: vertical-rl; display: flex; align-items: center; gap: 10mm; }
         .gyobi-mark { border: 1px solid #2e7d32; width: 6mm; height: 10mm; border-radius: 50% 50% 0 0; margin-bottom: 5mm; }
         .print-half-grid { display: flex; flex-direction: row-reverse; }
         .print-line { flex: 1; display: flex; flex-direction: column; border-left: 1px solid rgba(46,125,50,0.4); }
         .print-half-grid.right-side .print-line:first-child { border-right: none; }
         .print-half-grid.left-side .print-line:first-child { border-right: none; }
-        .print-cell {
-            flex: 1; border-bottom: 1px solid rgba(46,125,50,0.4);
-            display: flex; align-items: center; justify-content: center; position: relative;
-            writing-mode: vertical-rl; text-orientation: mixed;
-        }
-        .hanging-chars-print {
-            position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-            white-space: nowrap; writing-mode: vertical-rl; font-size: 0.6em;
-            margin-top: -2mm; line-height: 1;
-        }
+        .print-cell { flex: 1; border-bottom: 1px solid rgba(46,125,50,0.4); display: flex; align-items: center; justify-content: center; position: relative; writing-mode: vertical-rl; text-orientation: mixed; }
+        .hanging-chars-print { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; writing-mode: vertical-rl; font-size: 0.6em; margin-top: -2mm; line-height: 1; }
       }
     `;
 
-    // --- 共通コンポーネント ---
+    // 🌟 ベースラインを完璧に保ちつつ、ルビの色や配置を最適化したコンポーネント
     const Rb = ({ t, r }) => (
-      <ruby className="relative inline-block text-center align-baseline leading-none">
-        {t}<rt className="absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[0.6em] text-slate-500 pointer-events-none mb-[0.1em] font-medium tracking-normal" style={{ letterSpacing: 'normal' }}>{r}</rt>
-      </ruby>
+      <span className="relative inline-block text-center align-baseline leading-none">
+        {t}
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[0.55em] opacity-90 pointer-events-none font-bold tracking-normal leading-none whitespace-nowrap mb-[0.15em]" style={{ letterSpacing: 'normal' }}>{r}</span>
+      </span>
     );
 
-    // --- 堅牢な通信＆オフラインキュー機構 ---
-    const getOfflineQueue = () => { try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch(e) { return []; } };
-    const addOfflineQueue = (req) => {
-        const q = getOfflineQueue();
-        const filtered = q.filter(item => !(item.action === req.action && item.payload.id === req.payload.id));
-        filtered.push({ ...req, timestamp: Date.now() });
-        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(filtered));
-    };
-    const clearOfflineQueue = () => localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    const analyzeEssayWithGemini = async (title, grade, content) => {
+        const apiKey = localStorage.getItem('gemini_api_key');
+        if (!apiKey) throw new Error('先生用設定からGemini APIキーを登録してください。');
 
-    const runGAS = async (funcName, ...args) => {
-      if (!navigator.onLine && funcName === 'saveOrSubmitDraft') {
-          addOfflineQueue({ action: funcName, payload: args[0], isSubmit: args[1] });
-          throw new Error('OFFLINE_QUEUED');
-      }
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const systemPrompt = `あなたは日本の公立小学校のベテラン教師です。児童の作文に対して教育的な添削を行います。誤字脱字、言葉の誤用、段落構成について指摘し、温かいコメントを心がけてください。以下のJSON配列のみを出力してください。Markdownのコードブロックは含めないでください。\n[\n  {\n    "quote": "指摘対象の文字列（本文からそのまま抜き出すこと）",\n    "comment": "先生からのアドバイス"\n  }\n]`;
 
-      let retryCount = 0; const maxRetries = 2; 
-      while (retryCount <= maxRetries) {
-        try {
-          return await new Promise((resolve, reject) => {
-            if (typeof google === 'undefined' || typeof google.script === 'undefined') {
-                setTimeout(() => {
-                    resolve({ status: 'success', data: [], id: args[0]?.id || crypto.randomUUID(), docStatus: args[1] ? 'submitted' : (args[0]?.status || 'draft') });
-                }, 400);
-                return;
-            }
-            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[funcName](...args);
-          });
-        } catch (e) {
-          if (retryCount >= maxRetries) {
-              if (funcName === 'saveOrSubmitDraft') {
-                  addOfflineQueue({ action: funcName, payload: args[0], isSubmit: args[1] });
-                  throw new Error('OFFLINE_QUEUED');
-              }
-              throw e;
-          }
-          retryCount++;
-          await new Promise(r => setTimeout(r, 1000 * retryCount)); 
-        }
-      }
-    };
+        const userMessage = `【学年】${grade}\n【題名】${title}\n【本文】\n${content}`;
+        const payload = {
+            contents: [{ parts: [{ text: userMessage }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: { responseMimeType: "application/json" }
+        };
 
-    const processQueue = async (showMiniToast) => {
-        const q = getOfflineQueue();
-        if (q.length === 0) return;
-        if (!navigator.onLine) return;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
         
-        let successCount = 0;
-        for (const item of q) {
-            try {
-                if (item.action === 'saveOrSubmitDraft') {
-                    await runGAS(item.action, item.payload, item.isSubmit);
-                    successCount++;
-                }
-            } catch(e) { console.warn('Queue process failed', e); }
-        }
-        if (successCount > 0) {
-            clearOfflineQueue();
-            if (showMiniToast) showMiniToast(`オフライン中に保存された ${successCount} 件のデータを同期しました`, 'success');
-        }
+        if (!response.ok) throw new Error('APIとの通信に失敗しました。キーが正しいか確認してください。');
+        const json = await response.json();
+        if (json.error) throw new Error(json.error.message);
+        if (!json.candidates || json.candidates.length === 0) return [];
+
+        return JSON.parse(json.candidates[0].content.parts[0].text);
     };
 
     const parseCorrectionData = (raw, fallbackText) => {
@@ -234,7 +191,6 @@
         const lines = [];
         const createEmptyLine = () => Array(chars).fill({ c: '', idx: null });
 
-        // Header
         const titleParas = (title || '').split('\n');
         titleParas.forEach(p => {
             if (!p && lines.length === 0) return;
@@ -258,7 +214,6 @@
             lines.push(line, createEmptyLine());
         }
 
-        // Body
         const noStart = ['、','。','」','』','）','っ','ゃ','ゅ','ょ','ッ','ャ','ュ','ョ','ー',',','.','」','』',']','}','>','ぁ','ぃ','ぅ','ぇ','ぉ','ァ','ィ','ゥ','ェ','ォ','ヮ','ヵ','ヶ','・','？','！','‼','⁇','々'];
         const noEnd = ['「', '『', '（', '(', '[', '{', '<', '【', '〔', '［'];
         const compressionPairs = ['。」', '。』', '。）', '、」', '、』', '、）', '！』', '！」', '？』', '？」'];
@@ -278,18 +233,14 @@
 
                 if (i < pChars.length - 1) {
                     const pair = char + pChars[i+1];
-                    if (compressionPairs.includes(pair)) {
-                        char = pair;
-                        step = 2;
-                    }
+                    if (compressionPairs.includes(pair)) { char = pair; step = 2; }
                 }
 
                 if (line.length === chars - 1) {
                     if (noEnd.includes(char.charAt(0))) {
                         lines.push(line); line = [];
                         line.push({ c: char, idx: charIdx });
-                        i += step;
-                        continue;
+                        i += step; continue;
                     }
                 }
 
@@ -305,7 +256,6 @@
                                 const nextPair = nextChar + pChars[i+1];
                                 if (compressionPairs.includes(nextPair)) { nextChar = nextPair; nextStep = 2; }
                             }
-                            
                             if (noStart.includes(nextChar.charAt(0))) {
                                 const kicked = line.pop();
                                 lines.push(line);
@@ -314,7 +264,7 @@
                             }
                         }
                         lines.push(line); line = [];
-                    } else { // burasagari
+                    } else { 
                         while (i < pChars.length) {
                             let nextChar = pChars[i];
                             let nextStep = 1;
@@ -322,13 +272,10 @@
                                 const nextPair = nextChar + pChars[i+1];
                                 if (compressionPairs.includes(nextPair)) { nextChar = nextPair; nextStep = 2; }
                             }
-                            
                             if (noStart.includes(nextChar.charAt(0))) {
                                 line.push({ c: nextChar, idx: charGlobalIndex + i });
                                 i += nextStep;
-                            } else {
-                                break;
-                            }
+                            } else { break; }
                         }
                         lines.push(line); line = [];
                     }
@@ -345,7 +292,6 @@
         return lines;
     };
 
-    // --- 最適化された原稿用紙コンポーネント群 (React.memo活用) ---
     const GenkoCell = memo(({ charObj, isLastLineChar, hangingChars, cellSize, isSelected, showCorrection, isResolved, onClickCorrection }) => {
         let bgClass = ''; let afterElement = null;
         if (showCorrection) {
@@ -355,7 +301,7 @@
         }
 
         return (
-            <div className={`genko-cell vertical-rl flex items-center justify-center border-b border-genkoLine relative flex-shrink-0 ${cellSize} ${isLastLineChar ? 'border-b-0' : ''} transition-colors ${bgClass} ${isSelected ? 'cell-highlighted' : ''}`}
+            <div className={`genko-cell vertical-rl flex items-center justify-center border-b border-genkoLine relative flex-shrink-0 ${cellSize} ${isLastLineChar ? 'border-b-0' : ''} transition-colors duration-200 ${bgClass} ${isSelected ? 'cell-highlighted' : ''}`}
                  data-idx={charObj.idx !== null ? charObj.idx : ''}
                  onClick={(e) => { if (showCorrection && onClickCorrection) { e.stopPropagation(); onClickCorrection(); } }}>
                 <span>{charObj.c}</span>
@@ -368,12 +314,7 @@
             </div>
         );
     }, (prev, next) => {
-        return prev.charObj.c === next.charObj.c &&
-               prev.charObj.idx === next.charObj.idx &&
-               prev.showCorrection === next.showCorrection &&
-               prev.isResolved === next.isResolved &&
-               prev.hangingChars === next.hangingChars &&
-               prev.cellSize === next.cellSize;
+        return prev.charObj.c === next.charObj.c && prev.charObj.idx === next.charObj.idx && prev.showCorrection === next.showCorrection && prev.isResolved === next.isResolved && prev.hangingChars === next.hangingChars && prev.cellSize === next.cellSize;
     });
 
     const GenkoLineComponent = memo(({ line, charsPerLine, cellSize, isFirst, isLast, safeCorrections, isTeacher, onClickCorrection }) => {
@@ -382,7 +323,6 @@
                 {Array.from({ length: charsPerLine }).map((_, j) => {
                     const charObj = line[j] || { c: '', idx: null };
                     const idx = charObj.idx;
-                    
                     let correction = null;
                     if (idx !== null && safeCorrections.length > 0) {
                         correction = safeCorrections.find(c => idx >= c.start && idx < c.end);
@@ -393,25 +333,16 @@
                     const hangingChars = (isLastLineChar && line.length > charsPerLine) ? line.slice(charsPerLine).map(c => c.c).join('') : null;
 
                     return (
-                        <GenkoCell 
-                            key={j} 
-                            charObj={charObj} 
-                            isLastLineChar={isLastLineChar}
-                            hangingChars={hangingChars}
-                            cellSize={cellSize}
-                            showCorrection={showCorrection}
-                            isResolved={isResolved}
-                            onClickCorrection={correction ? () => onClickCorrection(correction) : undefined}
-                        />
+                        <GenkoCell key={j} charObj={charObj} isLastLineChar={isLastLineChar} hangingChars={hangingChars} cellSize={cellSize} showCorrection={showCorrection} isResolved={isResolved} onClickCorrection={correction ? () => onClickCorrection(correction) : undefined} />
                     );
                 })}
             </div>
         );
     }, (prev, next) => {
+        if (prev.charsPerLine !== next.charsPerLine || prev.cellSize !== next.cellSize) return false;
         const prevLineStr = prev.line.map(c=>c.c+c.idx).join('');
         const nextLineStr = next.line.map(c=>c.c+c.idx).join('');
         if (prevLineStr !== nextLineStr) return false;
-        
         const getLineCorrections = (line, corrections) => {
             const minIdx = line.find(c => c.idx !== null)?.idx ?? 999999;
             const maxIdx = line.slice().reverse().find(c => c.idx !== null)?.idx ?? -1;
@@ -419,18 +350,15 @@
         };
         const prevCorStr = getLineCorrections(prev.line, prev.safeCorrections);
         const nextCorStr = getLineCorrections(next.line, next.safeCorrections);
-        
         return prevCorStr === nextCorStr && prev.isTeacher === next.isTeacher;
     });
 
-    // 先生の滑らかなドラッグ操作を実現する、DOM直接操作を内包したラッパー
     const GenkoPaper = ({ draft, settings, corrections, isTeacher, onCorrectionAdded, onClickCorrection }) => {
         const lines = useMemo(() => parseGenkoPaper(draft?.title, draft?.class, draft?.name, draft?.content, settings), [draft, settings]);
         const { charsPerLine } = settings;
         const linesPerPage = charsPerLine === 20 ? 20 : 16;
         const cellSize = charsPerLine === 20 ? 'w-[2.8rem] h-[2.8rem] text-[1.6rem]' : 'w-[3.6rem] h-[3.6rem] text-[2.0rem]';
         const safeCorrections = Array.isArray(corrections) ? corrections : [];
-        
         const pageCount = Math.ceil(lines.length / linesPerPage) || 1;
         const renderLen = pageCount * linesPerPage;
 
@@ -492,34 +420,16 @@
         }, [onCorrectionAdded]);
 
         return (
-            <div 
-                ref={paperRef}
-                className="flex flex-row-reverse p-10 gap-8 font-genko w-max text-slate-800 select-none bg-[#fffaf0]" 
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-            >
+            <div ref={paperRef} className="flex flex-row-reverse p-10 gap-8 font-genko w-max text-slate-800 select-none bg-[#fffaf0]" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                 <div className="flex flex-row-reverse border-y border-genkoStrong bg-paper shadow-sm">
                     {Array.from({ length: renderLen }).map((_, i) => (
-                        <GenkoLineComponent 
-                            key={i} 
-                            line={lines[i] || []} 
-                            charsPerLine={charsPerLine} 
-                            cellSize={cellSize} 
-                            isFirst={i === 0} 
-                            isLast={i === renderLen - 1} 
-                            safeCorrections={safeCorrections} 
-                            isTeacher={isTeacher} 
-                            onClickCorrection={onClickCorrection} 
-                        />
+                        <GenkoLineComponent key={i} line={lines[i] || []} charsPerLine={charsPerLine} cellSize={cellSize} isFirst={i === 0} isLast={i === renderLen - 1} safeCorrections={safeCorrections} isTeacher={isTeacher} onClickCorrection={onClickCorrection} />
                     ))}
                 </div>
             </div>
         );
     };
 
-    // --- 差分表示用コンポーネント ---
     const DiffViewer = ({ draft }) => {
         const parsedCorrections = parseCorrectionData(draft?.correction, draft?.content);
         const oldText = parsedCorrections.baseText || '';
@@ -557,15 +467,14 @@
                         {getDiffElements(oldText, newText)}
                     </div>
                     <div className="absolute bottom-0 left-0 w-full px-6 py-4 border-t border-slate-100 bg-slate-50/90 backdrop-blur-sm flex justify-center gap-6 text-sm font-sans tracking-wider text-slate-600">
-                        <span className="flex items-center gap-2"><div className="w-4 h-4 bg-blue-200 rounded-sm border border-blue-300 shadow-sm"></div> 児童が修正・追加</span>
-                        <span className="flex items-center gap-2"><div className="w-4 h-4 bg-rose-200 rounded-sm border border-rose-300 shadow-sm"></div> 児童が削除</span>
+                        <span className="flex items-center gap-2"><div className="w-4 h-4 bg-blue-200 rounded-sm border border-blue-300 shadow-sm"></div> <Rb t="児童" r="じどう"/>が<Rb t="修正" r="しゅうせい"/>・<Rb t="追加" r="ついか"/></span>
+                        <span className="flex items-center gap-2"><div className="w-4 h-4 bg-rose-200 rounded-sm border border-rose-300 shadow-sm"></div> <Rb t="児童" r="じどう"/>が<Rb t="削除" r="さくじょ"/></span>
                     </div>
                 </div>
             </div>
         );
     };
 
-    // --- UI Components ---
     const ScalableWrapper = ({ children, externalScrollRatio }) => {
       const wrapperRef = useRef(null);
       const containerRef = useRef(null); 
@@ -596,15 +505,11 @@
         return () => { observer.disconnect(); cancelAnimationFrame(reqId); };
       }, [children]);
 
-      // スクロール同期処理 (エディタ → 原稿用紙)
       useEffect(() => {
           if (externalScrollRatio !== undefined && containerRef.current && dims.w > 0) {
               const c = containerRef.current;
               const maxScroll = c.scrollWidth - c.clientWidth;
-              if (maxScroll > 0) {
-                  // RTL (右から左) のスクロール制御。モダンブラウザはマイナス値
-                  c.scrollLeft = - (maxScroll * externalScrollRatio);
-              }
+              if (maxScroll > 0) c.scrollLeft = - (maxScroll * externalScrollRatio);
           }
       }, [externalScrollRatio, dims.w, scale]);
 
@@ -624,10 +529,10 @@
 
       return (
         <div ref={wrapperRef} className="absolute inset-0 bg-slate-100/50 overflow-hidden">
-          <div ref={containerRef} className="w-full h-full overflow-auto relative hide-scrollbar p-6" style={{ direction: 'rtl' }}>
+          <div ref={containerRef} className="w-full h-full overflow-auto relative hide-scrollbar p-6 scroll-smooth" style={{ direction: 'rtl' }}>
             <div style={{ direction: 'ltr' }} className="flex-shrink-0 w-max h-max mx-auto">
               <div style={{ width: dims.w > 0 ? dims.w * scale : '100%', height: dims.h > 0 ? dims.h * scale : '100%', minHeight: '100%', position: 'relative' }} className="transition-all duration-300 ease-out">
-                <div ref={contentRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top right', position: 'absolute', top: 0, right: 0 }} className="shadow-xl rounded-sm inline-block">
+                <div ref={contentRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top right', position: 'absolute', top: 0, right: 0 }} className="shadow-2xl rounded-sm inline-block">
                   {children}
                 </div>
               </div>
@@ -643,13 +548,13 @@
         if (isOpen) window.addEventListener('keydown', handleEsc);
         return () => window.removeEventListener('keydown', handleEsc);
       }, [isOpen, onClose]);
-
       if (!isOpen) return null;
       return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-2 sm:p-4 no-print">
-          <div className={`bg-white rounded-2xl shadow-2xl w-full ${maxWidth} flex flex-col max-h-[95vh] overflow-hidden transform transition-all animate-modal`}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-2 sm:p-4 no-print transition-opacity" onMouseDown={onClose}>
+          <div className={`bg-white rounded-2xl shadow-2xl w-full ${maxWidth} flex flex-col max-h-[95vh] overflow-hidden transform transition-all animate-modal ring-1 ring-slate-900/5`} onMouseDown={(e) => e.stopPropagation()}>
+            {/* 🌟 タイトル部分に padding と line-height を追加してルビ被りを防止 */}
             <div className="flex justify-between items-center p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-              <h3 className="font-bold text-lg text-slate-800 pt-1">{title}</h3>
+              <h3 className="font-bold text-lg text-slate-800 pt-3 leading-loose">{title}</h3>
               <button onClick={onClose} className="p-1.5 hover:bg-slate-200 rounded-full text-slate-500 transition-all active:scale-90"><i className="bi bi-x-lg text-[20px]"></i></button>
             </div>
             <div className="flex-1 overflow-auto p-4 sm:p-5">{children}</div>
@@ -658,21 +563,32 @@
       );
     };
 
+    const ConnectModal = ({ isOpen, onClose, onConnect }) => {
+        const [pin, setPin] = useState('');
+        if (!isOpen) return null;
+        return (
+            <Modal isOpen={isOpen} onClose={onClose} title={<><i className="bi bi-link-45deg text-blue-500 mr-2"></i><Rb t="先生" r="せんせい"/>と<Rb t="接続" r="せつぞく"/></>} maxWidth="max-w-sm">
+                <div className="p-2 text-center">
+                    {/* 🌟 line-height を大きく広げてルビの被りを完全に解消 */}
+                    <p className="mb-6 text-slate-600 font-bold leading-[2.5] pt-2">
+                        <Rb t="先生" r="せんせい"/>の<Rb t="画面" r="がめん"/>に<Rb t="表示" r="ひょうじ"/>されている<br/>
+                        4<Rb t="桁" r="けた"/>の<Rb t="数字" r="すうじ"/>（PIN）を<Rb t="入力" r="にゅうりょく"/>してください
+                    </p>
+                    <input type="text" maxLength={4} value={pin} onChange={e=>setPin(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => { if(e.key === 'Enter' && pin.length === 4) { onConnect(pin); onClose(); } }} className="text-center text-4xl font-bold tracking-[0.5em] w-full py-4 border-2 border-blue-200 rounded-xl mb-6 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all text-slate-800 bg-slate-50/50" placeholder="0000" autoFocus />
+                    <button onClick={() => { onConnect(pin); onClose(); }} disabled={pin.length !== 4} className="w-full py-3.5 bg-blue-500 text-white text-lg font-bold rounded-xl disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-blue-600 hover:shadow-lg transition-all active:scale-95 shadow-sm"><Rb t="接続" r="せつぞく"/>する</button>
+                </div>
+            </Modal>
+        );
+    };
+
     const TeacherAuthModal = ({ isOpen, onClose, onSubmit }) => {
       const [password, setPassword] = useState('');
       const inputRef = useRef(null);
       useEffect(() => { if (isOpen) { setPassword(''); setTimeout(() => inputRef.current?.focus(), 100); } }, [isOpen]);
-      useEffect(() => {
-        const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
-        if (isOpen) window.addEventListener('keydown', handleEsc);
-        return () => window.removeEventListener('keydown', handleEsc);
-      }, [isOpen, onClose]);
-
       if (!isOpen) return null;
-
       return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 no-print">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm flex flex-col max-h-[95vh] overflow-y-auto transform transition-all animate-modal border border-slate-100">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 no-print" onMouseDown={onClose}>
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm flex flex-col max-h-[95vh] overflow-y-auto transform transition-all animate-modal ring-1 ring-slate-900/5" onMouseDown={(e) => e.stopPropagation()}>
             <div className="flex justify-end p-2 absolute right-0 top-0">
                <button onClick={onClose} className="p-2 hover:bg-slate-100/50 rounded-full text-slate-400 transition-all active:scale-90"><i className="bi bi-x-lg text-[20px]"></i></button>
             </div>
@@ -680,12 +596,12 @@
               <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center text-rose-500 mb-4 border border-rose-100 ring-4 ring-rose-50/50">
                 <i className="bi bi-shield-lock text-[32px]"></i>
               </div>
-              <h3 className="font-bold text-xl text-slate-800 tracking-wide mt-2 pt-2 leading-loose"><Rb t="先生用" r="せんせいよう"/>ログイン</h3>
-              <p className="text-sm text-slate-500 mt-2 text-center font-medium tracking-wide leading-loose">クラスの<Rb t="管理" r="かんり"/>パスワードを<br/><Rb t="入力" r="にゅうりょく"/>してください</p>
+              <h3 className="font-bold text-xl text-slate-800 tracking-wide mt-2 pt-4 leading-loose"><Rb t="先生用" r="せんせいよう"/>ログイン</h3>
             </div>
-            <div className="p-6 pt-2">
-              <input ref={inputRef} type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onSubmit(password)} placeholder="••••••••" className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 font-bold text-xl transition-all text-center tracking-[0.5em]" />
-              <button onClick={() => onSubmit(password)} className="w-full mt-6 py-3.5 rounded-xl bg-gradient-to-r from-rose-500 to-rose-400 text-white font-bold text-lg hover:from-rose-600 hover:to-rose-500 active:scale-95 transition-all shadow-md shadow-rose-200">ログインする</button>
+            <div className="p-6 pt-2 text-center">
+              <p className="text-sm text-slate-500 mb-4 font-bold">※設定画面で決めたパスワードを入力<br/>（初期設定はパスワードなしで入れます）</p>
+              <input ref={inputRef} type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onSubmit(password)} placeholder="••••••••" className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 font-bold text-xl text-center tracking-[0.5em] transition-all" />
+              <button onClick={() => onSubmit(password)} className="w-full mt-6 py-3.5 rounded-xl bg-gradient-to-r from-rose-500 to-rose-400 text-white font-bold text-lg hover:from-rose-600 hover:to-rose-500 hover:shadow-lg active:scale-95 transition-all shadow-md">ログインする</button>
             </div>
           </div>
         </div>
@@ -705,7 +621,6 @@
       );
     };
 
-    // 控えめなトースト (オートセーブや楽観的UI用)
     const MiniToast = ({ isVisible, message, type, onClose }) => {
       useEffect(() => { if (isVisible) { const t = setTimeout(onClose, 2500); return () => clearTimeout(t); } }, [isVisible, onClose]);
       if (!isVisible) return null;
@@ -720,14 +635,14 @@
     const LoadingOverlay = ({ isVisible, text }) => {
       if (!isVisible) return null;
       return (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm no-print transition-all">
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm no-print transition-all">
           <div className="relative flex flex-col items-center">
             <div className="animate-bounce z-10 bg-gradient-to-br from-blue-400 to-blue-500 text-white p-4 rounded-2xl shadow-lg border border-blue-300/50">
               <i className="bi bi-pencil-square text-[40px]"></i>
             </div>
             <div className="w-16 h-3 bg-slate-300/60 rounded-[100%] mt-2 animate-pulse"></div>
           </div>
-          <div className="mt-6 font-bold text-slate-700 bg-white/90 px-6 pt-3 pb-2 rounded-full shadow-sm border border-slate-100 tracking-wide">{text || <><Rb t="処理中" r="しょりちゅう"/>...</>}</div>
+          <div className="mt-6 font-bold text-slate-700 bg-white/90 px-6 pt-3 pb-2 rounded-full shadow-sm border border-slate-100 tracking-wide">{text || 'しょりちゅう...'}</div>
         </div>
       );
     };
@@ -741,10 +656,7 @@
         const pageCount = Math.ceil(lines.length / linesPerPage) || 1;
         const fontSize = charsPerLine === 20 ? '16pt' : '20pt';
 
-        const pages = Array.from({ length: pageCount }, (_, i) => {
-            return lines.slice(i * linesPerPage, (i + 1) * linesPerPage);
-        });
-
+        const pages = Array.from({ length: pageCount }, (_, i) => lines.slice(i * linesPerPage, (i + 1) * linesPerPage));
         const shortTitle = (draft.title || '無題').substring(0, 10);
 
         return (
@@ -765,16 +677,13 @@
                                                 <div key={cIdx} className="print-cell" style={{ fontSize }}>
                                                     {cell.c}
                                                     {cIdx === charsPerLine - 1 && line.length > charsPerLine && (
-                                                        <div className="hanging-chars-print">
-                                                            {line.slice(charsPerLine).map(d => d.c).join('')}
-                                                        </div>
+                                                        <div className="hanging-chars-print">{line.slice(charsPerLine).map(d => d.c).join('')}</div>
                                                     )}
                                                 </div>
                                             ))}
                                         </div>
                                     ))}
                                 </div>
-
                                 <div className="print-gyobi-area">
                                     <div className="gyobi-content">
                                         <div className="gyobi-mark"></div>
@@ -782,7 +691,6 @@
                                         <div className="text-[0.8em] mt-[5mm]">{pIndex + 1}</div>
                                     </div>
                                 </div>
-
                                 <div className="print-half-grid right-side">
                                     {rightGrid.map((line, lIdx) => (
                                         <div key={lIdx} className="print-line">
@@ -790,9 +698,7 @@
                                                 <div key={cIdx} className="print-cell" style={{ fontSize }}>
                                                     {cell.c}
                                                     {cIdx === charsPerLine - 1 && line.length > charsPerLine && (
-                                                        <div className="hanging-chars-print">
-                                                            {line.slice(charsPerLine).map(d => d.c).join('')}
-                                                        </div>
+                                                        <div className="hanging-chars-print">{line.slice(charsPerLine).map(d => d.c).join('')}</div>
                                                     )}
                                                 </div>
                                             ))}
@@ -807,39 +713,152 @@
         );
     };
 
-    // --- Views ---
-    const StudentView = ({ draft, settings, updateDraft, onSave, onNew, openLoadModal, showToast, showMiniToast, showLoading, hideLoading }) => {
+    const usePeerCommunication = (updateTeacherDb, setSyncStatus, showToast, showMiniToast, setActiveDraft, mode, clientId, onSyncRequest, onReceiveReturn) => {
+        const [peer, setPeer] = useState(null);
+        const [peerId, setPeerId] = useState('');
+        const [pinCode, setPinCode] = useState('');
+        const [connections, setConnections] = useState([]);
+        const [hostConn, setHostConn] = useState(null);
+
+        const createRoom = useCallback(() => {
+            const pin = Math.floor(1000 + Math.random() * 9000).toString();
+            const id = `genko-pro-${pin}`;
+            const newPeer = new Peer(id);
+            
+            newPeer.on('open', actualId => {
+                setPeerId(actualId);
+                setPinCode(pin);
+                setSyncStatus('connected');
+            });
+            newPeer.on('error', (err) => {
+                if (err.type === 'unavailable-id') {
+                    showToast('エラーが発生しました。もう一度ルームを作成してください。', 'error');
+                    setPeerId(''); setPinCode('');
+                    setSyncStatus('offline');
+                }
+            });
+            newPeer.on('connection', conn => {
+                conn.on('open', () => {
+                    setConnections(prev => {
+                        if (!prev.find(c => c.peer === conn.peer)) return [...prev, conn];
+                        return prev;
+                    });
+                });
+                conn.on('data', data => {
+                    try {
+                        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+                        if (parsed.type === 'submission') {
+                            updateTeacherDb(parsed.data);
+                        } else if (parsed.type === 'sync_request') {
+                            if (onSyncRequest) onSyncRequest(parsed.clientId, parsed.draftsInfo, conn);
+                        }
+                    } catch (e) {}
+                });
+                conn.on('close', () => {
+                    setConnections(prev => prev.filter(c => c.peer !== conn.peer));
+                });
+            });
+            setPeer(newPeer);
+        }, [updateTeacherDb, setSyncStatus, showToast, onSyncRequest]);
+
+        const connectToHost = useCallback((pin, currentDraftsInfo) => {
+            setSyncStatus('connecting');
+            const newPeer = new Peer();
+            newPeer.on('open', (id) => {
+                setPeerId(id);
+                const hostId = `genko-pro-${pin}`;
+                const conn = newPeer.connect(hostId, { reliable: true });
+                
+                conn.on('open', () => {
+                    setHostConn(conn);
+                    setSyncStatus('connected');
+                    conn.send({ type: 'sync_request', clientId: clientId, draftsInfo: currentDraftsInfo });
+                });
+                conn.on('data', data => {
+                    try {
+                        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+                        if (parsed.type === 'return') {
+                            if (onReceiveReturn) onReceiveReturn(parsed.data);
+                        } else if (parsed.type === 'broadcast') {
+                            showToast(`せんせいからの メッセージ: ${parsed.data.message}`, 'success');
+                        }
+                    } catch (e) {}
+                });
+                conn.on('close', () => {
+                    setHostConn(null);
+                    setSyncStatus('offline');
+                });
+            });
+            newPeer.on('error', (err) => {
+                setSyncStatus('offline');
+                if (err.type === 'peer-unavailable') {
+                    showToast('せんせいが みつかりません。PINを かくにん してください。', 'error');
+                } else {
+                    showToast('せつぞくエラーが はっせい しました。', 'error');
+                }
+            });
+            setPeer(newPeer);
+        }, [setSyncStatus, showToast, clientId, onReceiveReturn]);
+
+        const broadcast = useCallback((data) => {
+            connections.forEach(conn => { if (conn.open) conn.send(data); });
+        }, [connections]);
+
+        const sendToHost = useCallback((data) => {
+            if (hostConn && hostConn.open) {
+                const dataWithPeerId = { ...data };
+                if (dataWithPeerId.data) {
+                    dataWithPeerId.data.peerId = peerId;
+                    dataWithPeerId.data.clientId = clientId;
+                }
+                hostConn.send(dataWithPeerId);
+                return true;
+            }
+            return false;
+        }, [hostConn, peerId, clientId]);
+
+        const sendToClient = useCallback((clientPeerId, data) => {
+            const conn = connections.find(c => c.peer === clientPeerId);
+            if (conn && conn.open) {
+                conn.send(data);
+                return true;
+            }
+            return false;
+        }, [connections]);
+
+        return { peerId, pinCode, connections, hostConn, createRoom, connectToHost, broadcast, sendToHost, sendToClient };
+    };
+
+    const StudentView = ({ draft, settings, updateDraft, onSave, onNew, showToast, setSyncStatus, sendToHost, studentDb, setLoadModalOpen }) => {
         const [selectedCor, setSelectedCor] = useState(null);
         const [isDuplicateConfirmOpen, setIsDuplicateConfirmOpen] = useState(false);
         const [scrollRatio, setScrollRatio] = useState(0);
 
-        // 提出済と完了は両方ともロック（編集不可）にする
-        const isCompleted = draft.status === 'completed';
-        const isSubmitted = draft.status === 'submitted';
+        const [localDraft, setLocalDraft] = useState(draft);
+        
+        useEffect(() => {
+            setLocalDraft(draft);
+        }, [draft.id, draft.status, draft.correction]); 
+
+        const isCompleted = localDraft.status === 'completed';
+        const isSubmitted = localDraft.status === 'submitted';
         const isLocked = isCompleted || isSubmitted;
 
-        const parsedCorrections = parseCorrectionData(draft.correction, draft.content);
-        const hasDiff = parsedCorrections.baseText && parsedCorrections.baseText !== draft.content;
+        const parsedCorrections = parseCorrectionData(localDraft.correction, localDraft.content);
+        const hasDiff = parsedCorrections.baseText && parsedCorrections.baseText !== localDraft.content;
 
-        // シームレスなオートセーブ (デバウンス)
         useEffect(() => {
             if (isLocked) return;
-            if (!draft.title && !draft.content) return; // 空なら無視
-            
-            const timer = setTimeout(async () => {
-                try {
-                    const res = await runGAS('saveOrSubmitDraft', draft, false);
-                    if (res.status === 'success') {
-                        updateDraft({ id: res.id });
-                        showMiniToast('自動保存しました', 'success');
-                    }
-                } catch(e) {
-                    if(e.message === 'OFFLINE_QUEUED') showMiniToast('オフラインのため端末に一時保存しました', 'success');
-                }
-            }, 3000); // 3秒止まったら
+            if (localDraft.content === draft.content && localDraft.title === draft.title && localDraft.name === draft.name && localDraft.class === draft.class) return;
+
+            setSyncStatus('saving');
+            const timer = setTimeout(() => {
+                updateDraft(localDraft);
+                onSave(false, true, localDraft); 
+            }, 600);
 
             return () => clearTimeout(timer);
-        }, [draft.content, draft.title, draft.class, draft.name, draft.status]); // eslint-disable-line
+        }, [localDraft.content, localDraft.title, localDraft.class, localDraft.name]); // eslint-disable-line
 
         const handleEditorScroll = (e) => {
             const el = e.target;
@@ -848,23 +867,25 @@
         };
 
         const executeDuplicate = () => {
-            updateDraft({ id: '', status: 'draft', correction: '' });
+            const newDraft = { id: crypto.randomUUID(), title: localDraft.title, class: localDraft.class, name: localDraft.name, content: localDraft.content, status: 'draft', correction: '' };
+            updateDraft(newDraft);
+            setLocalDraft(newDraft);
             setIsDuplicateConfirmOpen(false);
-            showToast('コピーしました！新しく保存・提出できます。', 'success');
+            showToast('コピーしました！あたらしく かきはじめられます。', 'success');
         };
 
-        const handleResolveCorrection = async () => {
+        const handleResolveCorrection = () => {
             if (!selectedCor) return;
-            showLoading('修正を反映中...');
-            let currentParsed = parseCorrectionData(draft.correction, draft.content);
+            let currentParsed = parseCorrectionData(localDraft.correction, localDraft.content);
             const newItems = currentParsed.items.map(c => c.id === selectedCor.id ? { ...c, status: 'resolved' } : c);
-            try {
-                const updatedDraft = { ...draft, correction: JSON.stringify({ baseText: draft.content, items: newItems }) };
-                await runGAS('saveOrSubmitDraft', updatedDraft, false);
-                updateDraft({ correction: updatedDraft.correction });
-                setSelectedCor(null);
-                showToast('修正完了としてマークしました', 'success');
-            } catch(e) { showToast('通信エラー', 'error'); } finally { hideLoading(); }
+            const updatedDraft = { ...localDraft, correction: JSON.stringify({ baseText: localDraft.content, items: newItems }) };
+            
+            setLocalDraft(updatedDraft);
+            updateDraft(updatedDraft);
+            onSave(false, false, updatedDraft);
+
+            setSelectedCor(null);
+            showToast('しゅうせい かんりょうに しました', 'success');
         };
 
         const adjustedCorrections = useMemo(() => {
@@ -872,87 +893,99 @@
             return getAdjustedCorrections(parsed.baseText, draft.content, parsed.items);
         }, [draft.correction, draft.content]);
 
+        const handleExportFile = () => {
+            const dataStr = JSON.stringify(localDraft, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${localDraft.name || '無題'}_${localDraft.title || '作文'}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('バックアップファイルを ほぞん しました', 'success');
+        };
+
         return (
-            <div className="flex-1 flex gap-4 p-4 min-h-0">
-                {/* 左パネル (エディタ) */}
-                <div className="w-1/3 min-w-[320px] max-w-[450px] bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+            <div className="flex-1 flex gap-4 p-4 min-h-0 bg-slate-50">
+                <div className="w-1/3 min-w-[320px] max-w-[450px] bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden ring-1 ring-slate-900/5">
                     <div className="flex-1 overflow-auto p-5 flex flex-col">
                         <div className="flex justify-between items-center mb-4 shrink-0">
                             <div className="flex items-center gap-3">
                                 <span className="text-sm font-bold text-slate-500 pt-2 leading-loose"><Rb t="基本情報" r="きほんじょうほう"/></span>
                                 {isLocked && (
-                                    <span className={`px-2.5 py-1 rounded text-xs font-bold shadow-sm flex items-center gap-1 mt-1 ${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                                        <i className="bi bi-lock-fill"></i> {isCompleted ? <><Rb t="完了" r="かんりょう"/>のため<Rb t="編集不可" r="へんしゅうふか"/></> : <><Rb t="提出済" r="ていしゅつずみ"/>のため<Rb t="編集不可" r="へんしゅうふか"/></>}
+                                    <span className={`px-2.5 py-1.5 rounded text-xs font-bold shadow-sm flex items-center gap-1 mt-1 ${isCompleted ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                                        <i className="bi bi-lock-fill -mt-0.5"></i> <span className="leading-relaxed">{isCompleted ? <><Rb t="完了" r="かんりょう"/>のため<Rb t="編集不可" r="へんしゅうふか"/></> : <><Rb t="提出済" r="ていしゅつずみ"/>のため<Rb t="編集不可" r="へんしゅうふか"/></>}</span>
                                     </span>
                                 )}
                                 {!isLocked && hasDiff && (
-                                    <span className="px-2.5 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700 shadow-sm flex items-center gap-1 mt-1">
-                                        <i className="bi bi-info-circle"></i> <Rb t="前回からの変更あり" r="ぜんかいからのへんこうあり"/>
+                                    <span className="px-2.5 py-1.5 rounded text-xs font-bold bg-blue-50 text-blue-700 shadow-sm border border-blue-200 flex items-center gap-1 mt-1">
+                                        <i className="bi bi-info-circle -mt-0.5"></i> <span className="leading-relaxed"><Rb t="前回" r="ぜんかい"/>からの<Rb t="変更" r="へんこう"/>あり</span>
                                     </span>
                                 )}
                             </div>
-                            <span className={`pt-2 pb-1 px-3 rounded-full text-xs font-bold text-white shadow-sm leading-loose ${draft.status==='submitted'?'bg-blue-500':draft.status==='completed'?'bg-emerald-500':draft.status==='rework'?'bg-amber-500':'bg-slate-400'}`}>
-                                {draft.status==='submitted' ? <Rb t="提出済" r="ていしゅつずみ"/> : draft.status==='completed' ? <Rb t="完了" r="かんりょう"/> : draft.status==='rework' ? <Rb t="再提出" r="さいていしゅつ"/> : <><Rb t="下書" r="したが"/>き</>}
+                            <span className={`pt-2 pb-1 px-3 rounded-full text-xs font-bold text-white shadow-sm leading-loose ${localDraft.status==='submitted'?'bg-blue-500':localDraft.status==='completed'?'bg-emerald-500':localDraft.status==='rework'?'bg-amber-500':'bg-slate-400'}`}>
+                                {localDraft.status==='submitted' ? <Rb t="提出済" r="ていしゅつずみ"/> : localDraft.status==='completed' ? <Rb t="完了" r="かんりょう"/> : localDraft.status==='rework' ? <Rb t="再提出" r="さいていしゅつ"/> : <><Rb t="下書" r="したが"/>き</>}
                             </span>
                         </div>
                         
-                        <input type="text" readOnly={isLocked} placeholder="だいめい" value={draft.title} onChange={e=>updateDraft({title:e.target.value})} className={`shrink-0 w-full px-4 py-3 mb-3 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 font-bold text-lg transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
+                        <input type="text" readOnly={isLocked} placeholder="題名" value={localDraft.title} onChange={e=>setLocalDraft(prev=>({...prev, title:e.target.value}))} className={`shrink-0 w-full px-4 py-3 mb-3 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 font-bold text-lg transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
                         <div className="flex gap-3 mb-4 shrink-0">
-                            <input type="text" readOnly={isLocked} placeholder="がくねん・くみ" value={draft.class} onChange={e=>updateDraft({class:e.target.value})} className={`w-1/3 px-4 py-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
-                            <input type="text" readOnly={isLocked} placeholder="なまえ" value={draft.name} onChange={e=>updateDraft({name:e.target.value})} className={`flex-1 px-4 py-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
+                            <input type="text" readOnly={isLocked} placeholder="学年・クラス" value={localDraft.class} onChange={e=>setLocalDraft(prev=>({...prev, class:e.target.value}))} className={`w-1/3 px-4 py-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
+                            <input type="text" readOnly={isLocked} placeholder="名前" value={localDraft.name} onChange={e=>setLocalDraft(prev=>({...prev, name:e.target.value}))} className={`flex-1 px-4 py-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
                         </div>
 
-                        <textarea onScroll={handleEditorScroll} readOnly={isLocked} placeholder="ここにさくぶんをかいてください..." value={draft.content} onChange={e=>updateDraft({content:e.target.value})} className={`flex-1 min-h-[250px] w-full p-5 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none leading-loose text-lg mb-2 shadow-inner transition-all hide-scrollbar lined-textarea ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-blue-50/20 focus:bg-white text-slate-800'}`} />
+                        <textarea onScroll={handleEditorScroll} readOnly={isLocked} placeholder="ここに作文を書いてください..." value={localDraft.content} onChange={e=>setLocalDraft(prev=>({...prev, content:e.target.value}))} className={`flex-1 min-h-[250px] w-full p-5 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none leading-loose text-lg mb-2 shadow-inner transition-all hide-scrollbar lined-textarea ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-blue-50/20 hover:bg-blue-50/40 focus:bg-white text-slate-800'}`} />
                         <div className="text-right text-sm text-slate-500 font-bold pt-2 leading-loose shrink-0">
-                            {(draft.content || '').replace(/\n/g, '').length} <Rb t="文字" r="もじ"/>
+                            {(localDraft.content || '').replace(/\n/g, '').length} <Rb t="文字" r="もじ"/>
                         </div>
                     </div>
 
-                    <div className="p-4 border-t border-slate-100 bg-white grid grid-cols-2 gap-3 shrink-0">
-                        <button onClick={onNew} className="flex items-center justify-center gap-2 pt-4 pb-2.5 border border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100 font-bold text-slate-700 transition-all active:scale-95 leading-loose"><i className="bi bi-plus-lg text-[18px]"></i> <span><Rb t="新規" r="しんき"/></span></button>
-                        <button onClick={openLoadModal} className="flex items-center justify-center gap-2 pt-4 pb-2.5 border border-blue-200 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition-all active:scale-95 leading-loose"><i className="bi bi-folder2-open text-[18px]"></i> <span><Rb t="開" r="ひら"/>く</span></button>
+                    <div className="p-4 border-t border-slate-100 bg-slate-50 grid grid-cols-2 gap-3 shrink-0">
+                        <button onClick={onNew} className="flex items-center justify-center gap-2 pt-4 pb-2.5 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 font-bold text-slate-700 transition-all active:scale-95 leading-loose shadow-sm"><i className="bi bi-plus-lg text-[18px]"></i> <span><Rb t="新規" r="しんき"/></span></button>
+                        <button onClick={() => setLoadModalOpen(true)} className="flex items-center justify-center gap-2 pt-4 pb-2.5 border border-blue-200 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition-all active:scale-95 leading-loose shadow-sm"><i className="bi bi-folder2-open text-[18px]"></i> <span><Rb t="開" r="ひら"/>く</span></button>
                         
                         {isCompleted ? (
-                            <button onClick={() => setIsDuplicateConfirmOpen(true)} className="col-span-2 flex items-center justify-center gap-2 pt-4 pb-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all active:scale-95 shadow-md hover:shadow-lg leading-loose"><i className="bi bi-files text-[18px]"></i> <span>コピーして<Rb t="新" r="あたら"/>しく<Rb t="書" r="か"/>く</span></button>
+                            <button onClick={() => setIsDuplicateConfirmOpen(true)} className="col-span-2 flex items-center justify-center gap-2 pt-4 pb-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 hover:shadow-lg transition-all active:scale-95 shadow-md leading-loose"><i className="bi bi-files text-[18px]"></i> <span>コピーして<Rb t="新" r="あたら"/>しく<Rb t="書" r="か"/>く</span></button>
                         ) : isSubmitted ? (
                             <button disabled className="col-span-2 flex items-center justify-center gap-2 pt-4 pb-3 bg-slate-300 text-white rounded-xl font-bold leading-loose cursor-not-allowed"><i className="bi bi-send-check text-[18px]"></i> <span><Rb t="提出済" r="ていしゅつずみ"/>（<Rb t="先生" r="せんせい"/>の<Rb t="確認待" r="かくにんま"/>ち）</span></button>
                         ) : (
                             <>
-                                <button onClick={() => onSave(false)} className="flex items-center justify-center gap-2 pt-4 pb-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-all active:scale-95 shadow-md hover:shadow-lg leading-loose"><i className="bi bi-floppy text-[18px]"></i> <span><Rb t="保存" r="ほぞん"/></span></button>
+                                <div className="flex gap-1 col-span-1">
+                                    <button onClick={() => onSave(false, false, localDraft)} className="flex-1 flex items-center justify-center gap-2 pt-4 pb-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 hover:shadow-lg transition-all active:scale-95 shadow-md leading-loose"><i className="bi bi-floppy text-[18px]"></i> <span><Rb t="保存" r="ほぞん"/></span></button>
+                                    <button onClick={handleExportFile} className="px-3 pt-4 pb-3 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 transition-all active:scale-95 shadow-sm" title="ファイルに書き出す"><i className="bi bi-download"></i></button>
+                                </div>
                                 <button onClick={async () => {
                                     const confirmResult = await Swal.fire({
-                                        title: '提出しますか？',
-                                        text: '先生が確認するまで変更できなくなります。',
+                                        title: 'ていしゅつ しますか？',
+                                        text: 'せんせいに そうしん します。かくにん されるまで なおせなくなります。',
                                         icon: 'question',
                                         showCancelButton: true,
-                                        confirmButtonColor: '#2563eb', // blue-600
+                                        confirmButtonColor: '#2563eb',
                                         cancelButtonColor: '#94a3b8',
-                                        confirmButtonText: 'はい、提出します',
+                                        confirmButtonText: 'はい、ていしゅつします',
                                         cancelButtonText: 'キャンセル'
                                     });
-                                    if (confirmResult.isConfirmed) onSave(true);
-                                }} className="flex items-center justify-center gap-2 pt-4 pb-3 bg-gradient-to-r from-blue-500 to-blue-400 text-white rounded-xl font-bold hover:from-blue-600 hover:to-blue-500 transition-all active:scale-95 shadow-md hover:shadow-lg leading-loose"><i className="bi bi-send text-[18px]"></i> <span><Rb t="提出" r="ていしゅつ"/></span></button>
+                                    if (confirmResult.isConfirmed) onSave(true, false, localDraft);
+                                }} className="flex items-center justify-center gap-2 pt-4 pb-3 bg-gradient-to-r from-blue-500 to-blue-400 text-white rounded-xl font-bold hover:from-blue-600 hover:to-blue-500 hover:shadow-lg transition-all active:scale-95 shadow-md leading-loose"><i className="bi bi-send text-[18px]"></i> <span><Rb t="提出" r="ていしゅつ"/></span></button>
                             </>
                         )}
                     </div>
                 </div>
 
-                {/* 右パネル (プレビュー) */}
-                <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative min-w-0">
+                <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative min-w-0 ring-1 ring-slate-900/5">
                     <div className="absolute top-4 right-4 z-20">
                         <button onClick={() => window.print()} className="px-3 pt-3 pb-1.5 rounded-lg bg-white shadow-sm border border-slate-200 text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95 flex items-center gap-1 leading-loose"><i className="bi bi-printer text-[15px] -mt-1"></i><span><Rb t="印刷" r="いんさつ"/></span></button>
                     </div>
-                    <div className="flex-1 relative min-h-0 bg-slate-100/50 rounded-2xl">
-                        <ScalableWrapper key={draft?.id || 'new'} externalScrollRatio={scrollRatio}>
+                    <div className="flex-1 relative min-h-0 bg-slate-100/30 rounded-2xl">
+                        <ScalableWrapper key={`${draft?.id || 'new'}-${settings.charsPerLine}-${settings.kinsokuMode}`} externalScrollRatio={scrollRatio}>
                             <GenkoPaper draft={draft} settings={settings} corrections={adjustedCorrections} isTeacher={false} onClickCorrection={(cor) => setSelectedCor(cor)} />
                         </ScalableWrapper>
                     </div>
                 </div>
 
-                {/* コピー確認モーダル */}
                 <Modal isOpen={isDuplicateConfirmOpen} onClose={() => setIsDuplicateConfirmOpen(false)} title={<><Rb t="作品" r="さくひん"/>のコピー</>} maxWidth="max-w-md">
                     <div className="space-y-4">
-                        <p className="text-slate-700 font-bold leading-relaxed">
+                        <p className="text-slate-700 font-bold leading-[2.5] pt-2">
                             この<Rb t="作品" r="さくひん"/>は「<Rb t="完了" r="かんりょう"/>」しているため、そのまま<Rb t="編集" r="へんしゅう"/>することはできません。<br/><br/>
                             コピーして、<Rb t="新" r="あたら"/>しい<Rb t="作品" r="さくひん"/>として<Rb t="書" r="か"/>き<Rb t="直" r="なお"/>しますか？
                         </p>
@@ -963,14 +996,12 @@
                     </div>
                 </Modal>
 
-                {/* 添削確認モーダル */}
                 <Modal isOpen={!!selectedCor} onClose={() => setSelectedCor(null)} title={<><Rb t="先生" r="せんせい"/>からのコメント</>} maxWidth="max-w-md">
                     {selectedCor && (
                         <div className="space-y-4">
                             <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-slate-800 font-medium leading-relaxed">
                                 {selectedCor.comment.replace('【AI】', '')}
                             </div>
-                            {/* 提出済み(ロック中)は完了ボタンを押せないようにする */}
                             {isLocked ? (
                                 <button disabled className="w-full pt-5 pb-3 leading-loose bg-slate-300 text-white font-bold rounded-xl cursor-not-allowed"><Rb t="提出中" r="ていしゅつちゅう"/>のため<Rb t="変更不可" r="へんこうふか"/></button>
                             ) : (
@@ -983,7 +1014,7 @@
         );
     };
 
-    const TeacherView = ({ db, settings, updateStatus, updateDraftInDB, onRefresh, selectedId, setSelectedId, setGlobalPrintDrafts, showLoading, hideLoading, showToast, showMiniToast }) => {
+    const TeacherView = ({ db, setDb, settings, updateStatus, updateDraftInDB, selectedId, setSelectedId, setGlobalPrintDrafts, showLoading, hideLoading, showToast, showMiniToast, peerId, pinCode, connections, createRoom, broadcast, sendToClient }) => {
         const [checkedIds, setCheckedIds] = useState(new Set());
         const drafts = db.filter(d => d.status !== 'draft');
         
@@ -998,7 +1029,7 @@
                 if (filterStatus === 'active' && d.status === 'completed') return false;
                 if (filterStatus !== 'all' && filterStatus !== 'active' && d.status !== filterStatus) return false;
                 if (filterStartDate || filterEndDate) {
-                    const itemDate = d.updatedAt.split(' ')[0];
+                    const itemDate = d.updatedAt ? d.updatedAt.split(' ')[0] : '';
                     if (filterStartDate && itemDate < filterStartDate.replace(/-/g, '/')) return false;
                     if (filterEndDate && itemDate > filterEndDate.replace(/-/g, '/')) return false;
                 }
@@ -1007,7 +1038,8 @@
                     if (!(d.title?.toLowerCase().includes(q) || d.name?.toLowerCase().includes(q) || d.content?.toLowerCase().includes(q))) return false;
                 }
                 return true;
-            });
+            })
+            .sort((a, b) => (b.updatedTimestamp || 0) - (a.updatedTimestamp || 0));
         }, [drafts, filterStatus, filterStartDate, filterEndDate, searchQuery]);
 
         useEffect(() => {
@@ -1028,12 +1060,10 @@
         }, [selectedId, db]);
 
         const selectedDraft = db.find(d => d.id === selectedId);
-
         const [correctionModal, setCorrectionModal] = useState({ isOpen: false, text: '', start: null, end: null });
         const [deleteConfirmInfo, setDeleteConfirmInfo] = useState(null);
         const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
 
-        // --- キーボードショートカット ---
         useEffect(() => {
             const handleKeyDown = (e) => {
                 if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable) return;
@@ -1044,7 +1074,6 @@
 
                 const key = e.key.toLowerCase();
                 if (key === 's' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleAll(); return; }
-                if (key === 'u' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); onRefresh(); return; }
                 if (key === 'p' && e.shiftKey) { e.preventDefault(); handleBulkPrint(); return; }
                 if (key === 'a' && e.shiftKey) { e.preventDefault(); handleBulkAiCorrection(); return; }
 
@@ -1084,7 +1113,7 @@
             setCorrectionModal({ isOpen: true, text: '', start, end });
         };
 
-        const handleSaveCorrection = async () => {
+        const handleSaveCorrection = () => {
             if (!selectedDraft || !correctionModal.text) return;
             const { start, end } = correctionModal;
             const displayStart = start;
@@ -1095,17 +1124,14 @@
             const originalText = currentContent.substring(displayStart, displayEnd);
             currentItems.push({ id: crypto.randomUUID(), start: displayStart, end: displayEnd, comment: correctionModal.text, originalText, status: 'active' });
             
-            const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: currentItems }) };
+            const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedTimestamp: Date.now() };
             
             updateDraftInDB(updatedDraft);
             setCorrectionModal({ isOpen: false, text: '', start:null, end:null });
             showMiniToast('添削を保存しました', 'success');
 
-            try {
-                // 先生は提出しないので false
-                await runGAS('saveOrSubmitDraft', updatedDraft, false);
-            } catch(e) {
-                if(e.message !== 'OFFLINE_QUEUED') showToast('保存に失敗しました', 'error');
+            if (updatedDraft.peerId) {
+                sendToClient(updatedDraft.peerId, { type: 'return', data: updatedDraft });
             }
         };
 
@@ -1116,23 +1142,20 @@
             let currentItems = getAdjustedCorrections(parsedCorrections.baseText, currentContent, parsedCorrections.items);
             const newItems = currentItems.filter(c => c.id !== deleteConfirmInfo.id);
             
-            const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: newItems }) };
+            const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: newItems }), updatedTimestamp: Date.now() };
             
             updateDraftInDB(updatedDraft);
             setDeleteConfirmInfo(null);
             showMiniToast('添削を削除しました', 'success');
-
-            // 先生は提出しないので false
-            runGAS('saveOrSubmitDraft', updatedDraft, false).catch((e) => {
-                if(e.message !== 'OFFLINE_QUEUED') showToast('削除に失敗しました', 'error');
-            });
+            
+            if (updatedDraft.peerId) sendToClient(updatedDraft.peerId, { type: 'return', data: updatedDraft });
         };
 
         const handleAiCorrection = async () => {
             if (!selectedDraft) return;
             showLoading('AIが添削中...');
             try {
-                const resultItems = await runGAS('analyzeEssayWithGemini', selectedDraft.title, selectedDraft.class, selectedDraft.content);
+                const resultItems = await analyzeEssayWithGemini(selectedDraft.title, selectedDraft.class, selectedDraft.content);
                 if (!resultItems || resultItems.length === 0) { showToast('修正提案はありませんでした', 'success'); return; }
                 
                 const currentContent = selectedDraft.content || '';
@@ -1145,12 +1168,11 @@
                     if (idx !== -1) { currentItems.push({ id: crypto.randomUUID(), start: idx, end: idx + aiItem.quote.length, comment: '【AI】' + aiItem.comment, originalText: aiItem.quote, status: 'active' }); addedCount++; }
                 });
                 
-                const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: currentItems }) };
+                const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedTimestamp: Date.now() };
                 
-                // 先生は提出しないので false
-                await runGAS('saveOrSubmitDraft', updatedDraft, false);
                 updateDraftInDB(updatedDraft);
                 showToast(`${addedCount}件のAI提案を追加しました`, 'success');
+                if (updatedDraft.peerId) sendToClient(updatedDraft.peerId, { type: 'return', data: updatedDraft });
             } catch(e) { showToast(e.message, 'error'); } finally { hideLoading(); }
         };
 
@@ -1159,7 +1181,7 @@
             
             const confirmResult = await Swal.fire({
                 title: '一括AI添削の実行',
-                text: `選択した ${checkedIds.size} 件の作品にAI添削を実行しますか？（少し時間がかかります）`,
+                text: `選択した ${checkedIds.size} 件の作品にAI添削を実行しますか？`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#f59e0b',
@@ -1176,7 +1198,7 @@
                 if (d) {
                     showLoading(`一括AI添削中... (${i}/${total})\n${d.name}`);
                     try {
-                        const resultItems = await runGAS('analyzeEssayWithGemini', d.title, d.class, d.content);
+                        const resultItems = await analyzeEssayWithGemini(d.title, d.class, d.content);
                         if (resultItems && resultItems.length > 0) {
                             const currentContent = d.content || '';
                             let parsedCorrections = parseCorrectionData(d.correction, currentContent);
@@ -1185,11 +1207,10 @@
                                 const idx = currentContent.indexOf(aiItem.quote);
                                 if (idx !== -1) { currentItems.push({ id: crypto.randomUUID(), start: idx, end: idx + aiItem.quote.length, comment: '【AI】' + aiItem.comment, originalText: aiItem.quote, status: 'active' }); }
                             });
-                            const updatedDraft = { ...d, correction: JSON.stringify({ baseText: currentContent, items: currentItems }) };
+                            const updatedDraft = { ...d, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedTimestamp: Date.now() };
                             
-                            // 先生は提出しないので false
-                            await runGAS('saveOrSubmitDraft', updatedDraft, false);
                             updateDraftInDB(updatedDraft);
+                            if (updatedDraft.peerId) sendToClient(updatedDraft.peerId, { type: 'return', data: updatedDraft });
                         }
                         successCount++;
                     } catch(e){}
@@ -1213,23 +1234,17 @@
             });
             if (!confirmResult.isConfirmed) return;
 
-            const updates = Array.from(checkedIds).map(id => {
+            Array.from(checkedIds).forEach(id => {
                 const d = drafts.find(x => x.id === id);
                 if (d) {
-                    const newD = { ...d, status: 'completed' };
+                    const newD = { ...d, status: 'completed', updatedTimestamp: Date.now() };
                     updateDraftInDB(newD);
-                    return newD;
+                    if (newD.peerId) sendToClient(newD.peerId, { type: 'return', data: newD });
                 }
-                return null;
-            }).filter(Boolean);
+            });
             
             setCheckedIds(new Set());
-            showMiniToast(`${updates.length} 件を完了にしました`, 'success');
-
-            // 先生は提出しないので false
-            updates.forEach(d => {
-                runGAS('saveOrSubmitDraft', d, false).catch(()=>{});
-            });
+            showMiniToast(`一括で完了にしました`, 'success');
         };
 
         const handleBulkPrint = () => {
@@ -1237,6 +1252,19 @@
             const printTargets = drafts.filter(d => checkedIds.has(d.id));
             setGlobalPrintDrafts(printTargets);
             setTimeout(() => window.print(), 500);
+        };
+
+        const handleExportIndividual = () => {
+            if (!selectedDraft) return;
+            const dataStr = JSON.stringify(selectedDraft, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${selectedDraft.name || '無題'}_添削済.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('児童に渡すファイルを保存しました', 'success');
         };
 
         const adjustedCorrections = useMemo(() => {
@@ -1247,20 +1275,43 @@
 
         return (
             <div className="flex-1 flex bg-slate-100 no-print min-h-0">
-                {/* サイドバー */}
                 <div className="w-[340px] border-r border-slate-200 bg-white flex flex-col h-full overflow-hidden shadow-sm z-10 shrink-0">
                     <div className="p-4 border-b border-slate-100 bg-rose-50/50 text-rose-800 font-bold flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-2"><i className="bi bi-person-gear text-[22px] text-rose-600"></i> 管理画面</div>
                         <div className="flex items-center gap-1">
                             <button onClick={() => setIsShortcutModalOpen(true)} className="p-1.5 hover:bg-rose-100 rounded-lg transition-all active:scale-90 text-rose-500" title="ショートカット"><i className="bi bi-question-circle text-[18px]"></i></button>
-                            <button onClick={onRefresh} className="p-1.5 hover:bg-rose-100 rounded-lg transition-all active:scale-90 text-rose-600" title="更新"><i className="bi bi-arrow-clockwise text-[18px]"></i></button>
                         </div>
+                    </div>
+
+                    <div className="p-4 border-b border-slate-100 bg-slate-50 shrink-0">
+                        <div className="font-bold text-slate-700 mb-3 flex items-center justify-between">
+                            <span className="flex items-center gap-2"><i className="bi bi-broadcast text-blue-500 text-lg"></i> リアルタイム授業</span>
+                            {peerId && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-bold shadow-sm border border-emerald-200">{connections.length}人 接続中</span>}
+                        </div>
+                        {!peerId ? (
+                            <button onClick={createRoom} className="w-full py-2.5 bg-white border-2 border-blue-500 text-blue-600 font-bold rounded-xl hover:bg-blue-50 hover:shadow-md transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2">
+                                <i className="bi bi-play-circle-fill text-lg"></i> 通信ルームを開始
+                            </button>
+                        ) : (
+                            <div className="space-y-3 animate-modal">
+                                <div className="bg-white p-4 rounded-xl border border-blue-200 text-center shadow-sm">
+                                    <p className="text-xs text-slate-500 mb-1 font-bold">児童に伝えてください</p>
+                                    <p className="text-[10px] text-slate-400 mb-2">児童画面の「先生と接続」から入力</p>
+                                    <div className="text-4xl font-bold tracking-[0.2em] text-blue-600 py-3 bg-blue-50 rounded-lg border border-blue-100 shadow-inner">
+                                        {pinCode}
+                                    </div>
+                                </div>
+                                <button onClick={() => broadcast({ type: 'broadcast', data: { message: '先生からの注目メッセージ！' } })} className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-bold rounded-xl hover:from-emerald-600 hover:to-teal-500 hover:shadow-lg transition-all active:scale-95 shadow-md flex items-center justify-center gap-2 text-sm">
+                                    <i className="bi bi-megaphone-fill"></i> 全員にメッセージ送信
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="p-3 border-b border-slate-100 bg-slate-50 flex flex-col gap-2 shrink-0">
                         <div className="relative">
                             <i className="bi bi-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                            <input type="text" placeholder="キーワード (名前・題名・本文)" value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} className="w-full pl-8 pr-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-400 transition-all" />
+                            <input type="text" placeholder="キーワード (名前・題名・本文)" value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} className="w-full pl-8 pr-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-400 transition-all bg-white" />
                         </div>
                         <div className="flex flex-col gap-2">
                             <select value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)} className="w-full border border-slate-200 rounded-lg text-sm py-1.5 px-2 focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-400 bg-white transition-all text-slate-600 cursor-pointer">
@@ -1270,28 +1321,23 @@
                                 <option value="rework">再提出</option>
                                 <option value="completed">完了</option>
                             </select>
-                            <div className="flex gap-1 items-center">
-                                <input type="date" value={filterStartDate} onChange={(e)=>setFilterStartDate(e.target.value)} className="flex-1 border border-slate-200 rounded-lg text-xs py-1.5 px-1 focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-400 bg-white transition-all text-slate-600 text-center cursor-pointer" />
-                                <span className="text-slate-400 text-xs">〜</span>
-                                <input type="date" value={filterEndDate} onChange={(e)=>setFilterEndDate(e.target.value)} className="flex-1 border border-slate-200 rounded-lg text-xs py-1.5 px-1 focus:outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-400 bg-white transition-all text-slate-600 text-center cursor-pointer" />
-                            </div>
                         </div>
                     </div>
 
                     <div className="p-2 border-b border-slate-100 bg-white flex items-center gap-2 text-sm shrink-0">
-                        <button onClick={toggleAll} className="p-1 hover:bg-slate-100 rounded text-slate-500" title="表示中の作品をすべて選択"><i className={`bi ${allVisibleChecked ? 'bi-check-square-fill text-rose-500' : 'bi-square'}`}></i></button>
+                        <button onClick={toggleAll} className="p-1 hover:bg-slate-100 rounded text-slate-500 transition-colors" title="表示中の作品をすべて選択"><i className={`bi ${allVisibleChecked ? 'bi-check-square-fill text-rose-500' : 'bi-square'}`}></i></button>
                         <span className="text-slate-600 font-medium">一括操作:</span>
                         <button onClick={handleBulkAiCorrection} disabled={checkedIds.size===0} className="ml-auto p-1.5 text-amber-600 hover:bg-amber-50 rounded disabled:opacity-50 transition-colors" title="一括AI添削 (Shift + A)"><i className="bi bi-magic"></i></button>
                         <button onClick={handleBulkComplete} disabled={checkedIds.size===0} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded disabled:opacity-50 transition-colors" title="完了にする"><i className="bi bi-check-circle-fill"></i></button>
                         <button onClick={handleBulkPrint} disabled={checkedIds.size===0} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 transition-colors" title="一括印刷 (Shift + P)"><i className="bi bi-printer-fill"></i></button>
                     </div>
 
-                    <div className="flex-1 overflow-auto hide-scrollbar">
+                    <div className="flex-1 overflow-auto hide-scrollbar relative bg-slate-50/30">
                         {filteredDrafts.length === 0 && <div className="p-5 text-center text-slate-400 text-sm font-bold mt-4">該当する作品がありません</div>}
                         {filteredDrafts.map(d => (
-                            <div key={d.id} onClick={() => setSelectedId(d.id)} className={`p-4 border-b border-slate-100 cursor-pointer transition-all active:scale-[0.99] flex gap-3 ${selectedId === d.id ? 'bg-rose-50 border-l-4 border-l-rose-500 shadow-inner' : 'hover:bg-slate-50 border-l-4 border-l-transparent'}`}>
+                            <div key={d.id} onClick={() => setSelectedId(d.id)} className={`p-4 border-b border-slate-100 cursor-pointer transition-all active:scale-[0.99] flex gap-3 ${selectedId === d.id ? 'bg-rose-50 border-l-4 border-l-rose-500 shadow-inner' : 'bg-white hover:bg-slate-50 border-l-4 border-l-transparent'}`}>
                                 <div className="pt-0.5" onClick={e => toggleCheck(e, d.id)}>
-                                    <i className={`bi text-[18px] ${checkedIds.has(d.id) ? 'bi-check-square-fill text-rose-500' : 'bi-square text-slate-300'}`}></i>
+                                    <i className={`bi text-[18px] ${checkedIds.has(d.id) ? 'bi-check-square-fill text-rose-500' : 'bi-square text-slate-300 transition-colors'}`}></i>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-center mb-1.5">
@@ -1312,7 +1358,6 @@
                     </div>
                 </div>
 
-                {/* プレビュー領域 */}
                 <div className="flex-1 flex flex-col bg-slate-100/50 min-w-0">
                     {selectedDraft ? (
                         <>
@@ -1325,27 +1370,30 @@
                                 </div>
                                 
                                 <div className="flex items-center gap-2 shrink-0">
-                                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 mr-2">
+                                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 mr-2 shadow-inner">
                                         <button onClick={() => setPreviewMode('genko')} className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-all ${previewMode === 'genko' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`} title="原稿用紙 (V)">原稿用紙</button>
                                         <button onClick={() => setPreviewMode('diff')} className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-all flex items-center gap-1 ${previewMode === 'diff' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`} title="差分 (V)">
                                             <i className="bi bi-file-diff"></i> 差分
                                         </button>
                                     </div>
 
-                                    <button onClick={handleAiCorrection} className="px-3 py-1.5 rounded-lg text-sm font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-all active:scale-95 flex items-center gap-1" title="AI添削 (A)"><i className="bi bi-magic"></i> AI添削</button>
+                                    <button onClick={handleExportIndividual} className="px-3 py-1.5 rounded-lg text-sm font-bold bg-white border border-slate-200 shadow-sm text-slate-600 hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-1" title="ファイルとしてダウンロード（児童へ渡す用）"><i className="bi bi-download"></i></button>
+                                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
+
+                                    <button onClick={handleAiCorrection} className="px-3 py-1.5 rounded-lg text-sm font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 hover:shadow-sm transition-all active:scale-95 flex items-center gap-1" title="AI添削 (A)"><i className="bi bi-magic"></i> AI添削</button>
                                     <div className="w-px h-6 bg-slate-200 mx-1"></div>
                                     <button onClick={() => updateStatus(selectedDraft.id, 'rework')} className="px-4 py-1.5 rounded-full text-sm font-bold border border-rose-500 text-rose-500 hover:bg-rose-50 hover:shadow-sm transition-all active:scale-95" title="再提出にする (R)">再提出</button>
                                     <button onClick={() => updateStatus(selectedDraft.id, 'completed')} className="px-4 py-1.5 rounded-full text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 hover:shadow-md transition-all active:scale-95 flex items-center gap-1" title="完了にする (C)"><i className="bi bi-check-circle text-[16px]"></i> 完了</button>
                                 </div>
                             </div>
                             
-                            <div className="flex-1 relative min-h-0 bg-slate-100/50 rounded-b-2xl">
+                            <div className="flex-1 relative min-h-0 bg-slate-100/30 rounded-b-2xl">
                                 {previewMode === 'genko' && (
                                     <div className="absolute top-4 left-4 z-20 bg-white/90 backdrop-blur px-4 py-2 rounded-xl shadow-sm border border-slate-200 text-sm font-bold text-slate-500 flex items-center gap-2 pointer-events-none">
                                         <i className="bi bi-info-circle text-rose-500 text-[18px]"></i> 文字をドラッグして添削
                                     </div>
                                 )}
-                                <ScalableWrapper key={selectedDraft.id + previewMode}>
+                                <ScalableWrapper key={`${selectedDraft.id}-${previewMode}-${settings.charsPerLine}-${settings.kinsokuMode}`}>
                                     {previewMode === 'genko' ? (
                                         <GenkoPaper draft={selectedDraft} settings={settings} corrections={adjustedCorrections} isTeacher={true} onCorrectionAdded={handleCorrectionAdded} onClickCorrection={(cor) => setDeleteConfirmInfo(cor)} />
                                     ) : (
@@ -1356,8 +1404,10 @@
                         </>
                     ) : (
                         <div className="flex-1 flex items-center justify-center">
-                            <div className="text-center">
-                                <i className="bi bi-pencil-square text-[48px] mx-auto text-slate-300 mb-4"></i>
+                            <div className="text-center animate-modal">
+                                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-200 mx-auto mb-4">
+                                    <i className="bi bi-journal-text text-[40px] text-slate-300"></i>
+                                </div>
                                 <div className="text-slate-500 font-bold text-lg">リストから作品を選択してください</div>
                             </div>
                         </div>
@@ -1366,8 +1416,8 @@
 
                 <Modal isOpen={correctionModal.isOpen} onClose={() => { setCorrectionModal({isOpen:false, text:'', start:null, end:null}); }} title="添削コメントの追加" maxWidth="max-w-md">
                     <div className="space-y-4">
-                        <textarea value={correctionModal.text} onChange={e => setCorrectionModal(prev => ({...prev, text: e.target.value}))} placeholder="修正指示やアドバイスを入力..." className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-rose-400 focus:ring-2 focus:ring-rose-100 resize-none text-slate-800"></textarea>
-                        <button onClick={handleSaveCorrection} className="w-full py-3 bg-rose-500 text-white font-bold rounded-xl hover:bg-rose-600 transition-all active:scale-95 shadow-sm">追加する</button>
+                        <textarea value={correctionModal.text} onChange={e => setCorrectionModal(prev => ({...prev, text: e.target.value}))} placeholder="修正指示やアドバイスを入力..." className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-rose-400 focus:ring-4 focus:ring-rose-100 resize-none text-slate-800 transition-all"></textarea>
+                        <button onClick={handleSaveCorrection} className="w-full py-3 bg-rose-500 text-white font-bold rounded-xl hover:bg-rose-600 hover:shadow-lg transition-all active:scale-95 shadow-md">追加する</button>
                     </div>
                 </Modal>
 
@@ -1388,7 +1438,6 @@
                         <div className="flex justify-between items-center p-3 border-b border-slate-100"><span className="text-slate-600 font-bold">児童の切り替え</span><span className="bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono text-sm border border-slate-200 shadow-sm">↑ / ↓</span></div>
                         <div className="flex justify-between items-center p-3 border-b border-slate-100"><span className="text-slate-600 font-bold">表示切り替え（原稿/差分）</span><span className="bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono text-sm border border-slate-200 shadow-sm">V</span></div>
                         <div className="flex justify-between items-center p-3 border-b border-slate-100"><span className="text-slate-600 font-bold">一括選択 / 解除</span><span className="bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono text-sm border border-slate-200 shadow-sm">S</span></div>
-                        <div className="flex justify-between items-center p-3 border-b border-slate-100"><span className="text-slate-600 font-bold">リストの更新</span><span className="bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono text-sm border border-slate-200 shadow-sm">U</span></div>
                         <div className="flex justify-between items-center p-3 border-b border-slate-100"><span className="text-slate-600 font-bold">AI添削</span><span className="bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono text-sm border border-slate-200 shadow-sm">A</span></div>
                         <div className="flex justify-between items-center p-3 border-b border-slate-100"><span className="text-slate-600 font-bold">一括AI添削（チェックを入れた作品）</span><span className="bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono text-sm border border-slate-200 shadow-sm">Shift + A</span></div>
                         <div className="flex justify-between items-center p-3 border-b border-slate-100"><span className="text-slate-600 font-bold">印刷（選択中の作品）</span><span className="bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono text-sm border border-slate-200 shadow-sm">P</span></div>
@@ -1402,39 +1451,58 @@
         );
     };
 
-    const TeacherSettingsModal = ({ isOpen, onClose, showLoading, hideLoading, showToast }) => {
-        const [apiKey, setApiKey] = useState('');
-        const [password, setPassword] = useState('');
+    const TeacherSettingsModal = ({ isOpen, onClose, db, setDb, showLoading, hideLoading, showToast }) => {
+        const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+        const [password, setPassword] = useState(localStorage.getItem('teacher_password') || '');
 
-        const handleSave = async () => {
+        const handleSave = () => {
             showLoading('システム設定を保存中...');
-            try {
-                if (apiKey) await runGAS('setGeminiApiKey', apiKey);
-                if (password) await runGAS('updateTeacherPassword', password);
+            localStorage.setItem('gemini_api_key', apiKey);
+            localStorage.setItem('teacher_password', password);
+            setTimeout(() => {
                 showToast('設定を保存しました。', 'success');
-                onClose();
-            } catch(e) {
-                showToast('保存エラー。', 'error');
-            } finally {
                 hideLoading();
+                onClose();
+            }, 300);
+        };
+
+        const handleClearData = async () => {
+            const confirmResult = await Swal.fire({
+                title: '本当にデータを全て消去しますか？',
+                text: 'ローカルに保存されている児童の提出データが全て消えます。この操作は元に戻せません。',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#94a3b8',
+                confirmButtonText: '消去する',
+                cancelButtonText: 'キャンセル'
+            });
+            if (confirmResult.isConfirmed) {
+                setDb([]);
+                localStorage.removeItem(TEACHER_DB_KEY);
+                showToast('全ての提出データを消去しました', 'success');
             }
         };
 
         return (
-            <Modal isOpen={isOpen} onClose={onClose} title={<><i className="bi bi-gear-fill text-rose-500 mr-2"></i>システム設定</>} maxWidth="max-w-md">
+            <Modal isOpen={isOpen} onClose={onClose} title={<><i className="bi bi-gear-fill text-rose-500 mr-2"></i>先生用設定</>} maxWidth="max-w-md">
                 <div className="space-y-6">
                     <div className="bg-rose-50 p-4 rounded-xl border border-rose-100 mb-4">
-                        <p className="text-sm text-rose-800 font-bold">※ この設定画面は児童には表示されません。</p>
+                        <p className="text-sm text-rose-800 font-bold">※ この設定画面は児童には表示されません。データはお使いのブラウザにのみ保存されます。</p>
                     </div>
                     <div>
-                        <h4 className="font-bold text-slate-700 mb-2">ログインパスワードの変更</h4>
-                        <input type="text" value={password} onChange={e=>setPassword(e.target.value)} placeholder="新しいパスワードを入力" className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100" />
+                        <h4 className="font-bold text-slate-700 mb-2">ログインパスワードの設定</h4>
+                        <input type="text" value={password} onChange={e=>setPassword(e.target.value)} placeholder="（設定しなくても入れます）" className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
                     </div>
                     <div>
-                        <h4 className="font-bold text-slate-700 mb-2">Gemini APIキーの設定</h4>
-                        <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="AI添削用APIキー" className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100" />
+                        <h4 className="font-bold text-slate-700 mb-2">Gemini APIキー (AI添削用)</h4>
+                        <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="AI添削を使用する場合に入力" className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
                     </div>
-                    <div className="flex justify-end pt-4 border-t border-slate-100">
+                    <div className="pt-4 border-t border-slate-100">
+                        <h4 className="font-bold text-slate-700 mb-2">データの管理</h4>
+                        <button onClick={handleClearData} disabled={db.length === 0} className="w-full py-2 border-2 border-rose-500 text-rose-600 font-bold rounded-lg hover:bg-rose-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">全データを消去する</button>
+                    </div>
+                    <div className="flex justify-end pt-2 border-t border-slate-100 mt-6">
                         <button onClick={handleSave} className="px-6 py-2 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-700 transition-all active:scale-95 shadow-sm">保存して閉じる</button>
                     </div>
                 </div>
@@ -1444,14 +1512,26 @@
 
     function App() {
       const [mode, setMode] = useState('student'); 
-      const [db, setDb] = useState([]);
+      const [syncStatus, setSyncStatus] = useState('offline'); 
       
+      const [db, setDb] = useState(() => {
+          try { return JSON.parse(localStorage.getItem(TEACHER_DB_KEY) || '[]'); } catch(e) { return []; }
+      });
+      const [studentDb, setStudentDb] = useState(() => {
+          try { return JSON.parse(localStorage.getItem(STUDENT_DB_KEY) || '[]'); } catch(e) { return []; }
+      });
+      
+      const [clientId] = useState(() => {
+          let id = localStorage.getItem(CLIENT_ID_KEY);
+          if (!id) { id = crypto.randomUUID(); localStorage.setItem(CLIENT_ID_KEY, id); }
+          return id;
+      });
+
       const [activeDraft, setActiveDraft] = useState(() => {
         const saved = localStorage.getItem(AUTOSAVE_KEY);
         if (saved) { try { return JSON.parse(saved); } catch(e) {} }
-        return { title: '', class: '', name: '', content: '', status: 'draft', correction: '' };
+        return { id: crypto.randomUUID(), title: '', class: '', name: '', content: '', status: 'draft', correction: '' };
       });
-      const [teacherPassword, setTeacherPassword] = useState('');
       const [teacherSelectedId, setTeacherSelectedId] = useState(null);
       const [globalPrintDrafts, setGlobalPrintDrafts] = useState([]); 
       
@@ -1464,8 +1544,8 @@
       const [isTeacherSettingsModalOpen, setIsTeacherSettingsModalOpen] = useState(false);
       const [isTeacherAuthModalOpen, setTeacherAuthModalOpen] = useState(false);
       const [isNewConfirmOpen, setIsNewConfirmOpen] = useState(false);
+      const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
       
-      // 返却通知用の状態
       const [readReceipts, setReadReceipts] = useState(() => {
           try { return JSON.parse(localStorage.getItem(READ_RECEIPTS_KEY) || '{}'); } catch(e) { return {}; }
       });
@@ -1478,122 +1558,130 @@
         return { charsPerLine: 20, kinsokuMode: 'oidashi' };
       });
 
+      useEffect(() => { localStorage.setItem(TEACHER_DB_KEY, JSON.stringify(db)); }, [db]);
+      useEffect(() => { localStorage.setItem(STUDENT_DB_KEY, JSON.stringify(studentDb)); }, [studentDb]);
       useEffect(() => { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }, [settings]);
       useEffect(() => { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(activeDraft)); }, [activeDraft]);
       useEffect(() => { if (mode === 'student') setGlobalPrintDrafts([activeDraft]); }, [mode, activeDraft]);
 
-      // オフライン復帰時の処理登録
       useEffect(() => {
-          const handleOnline = () => processQueue(showMiniToast);
-          window.addEventListener('online', handleOnline);
-          return () => window.removeEventListener('online', handleOnline);
-      }, [showMiniToast]);
+          if (syncStatus === 'saving') {
+              const timer = setTimeout(() => setSyncStatus('saved'), 800);
+              return () => clearTimeout(timer);
+          }
+      }, [syncStatus]);
 
       const showToast = useCallback((message, type = 'success') => setToast({ isVisible: true, message, type }), []);
       const showMiniToast = useCallback((message, type = 'success') => setMiniToast({ isVisible: true, message, type }), []);
       const showLoading = useCallback((text) => setLoading({ isVisible: true, text }), []);
       const hideLoading = useCallback(() => setLoading({ isVisible: false, text: '' }), []);
 
-      // 起動時およびモード変更時に児童の返却状態をチェック
-      const checkReturnedAssignments = useCallback(async () => {
-          if (mode !== 'student') return;
-          try {
-              const res = await runGAS('getDraftList', 'student');
-              if (res.status === 'success') {
-                  const allReturned = res.data.filter(d => ['rework', 'completed', 'returned'].includes(d.status));
-                  setReturnedDrafts(allReturned);
+      const updateDraftInDB = useCallback((updatedDraft) => {
+          setDb(prev => {
+              const exists = prev.find(d => d.id === updatedDraft.id);
+              if (exists) return prev.map(d => d.id === updatedDraft.id ? updatedDraft : d);
+              return [updatedDraft, ...prev];
+          });
+      }, []);
+
+      const updateStudentDb = useCallback((draft) => {
+          setStudentDb(prev => {
+              const exists = prev.find(d => d.id === draft.id);
+              if (exists) return prev.map(d => d.id === draft.id ? draft : d);
+              return [draft, ...prev];
+          });
+      }, []);
+
+      const handleSyncRequest = useCallback((clientUUID, draftsInfo, conn) => {
+          const myDrafts = db.filter(d => d.clientId === clientUUID);
+          let syncCount = 0;
+          myDrafts.forEach(md => {
+              const clientTs = draftsInfo[md.id] || 0;
+              if ((md.updatedTimestamp || 0) > clientTs && ['rework', 'completed', 'returned'].includes(md.status)) {
+                  conn.send({ type: 'return', data: md });
+                  syncCount++;
               }
-          } catch(e) {}
-      }, [mode]);
+          });
+          if (syncCount > 0) showMiniToast(`${syncCount}件の最新データを児童に自動返却しました`, 'success');
+      }, [db, showMiniToast]);
 
-      useEffect(() => { checkReturnedAssignments(); }, [checkReturnedAssignments]);
+      const handleReceiveReturn = useCallback((draft) => {
+          updateStudentDb(draft);
+          if (activeDraft.id === draft.id) setActiveDraft(draft);
+          setReturnedDrafts(prev => {
+              const exists = prev.find(d => d.id === draft.id);
+              if (exists) return prev.map(d => d.id === draft.id ? draft : d);
+              return [draft, ...prev];
+          });
+          showToast('せんせいから てんさくが へんきゃく されました！', 'success');
+      }, [activeDraft.id, updateStudentDb, showToast]);
 
-      const unreadCount = useMemo(() => {
-          return returnedDrafts.filter(d => readReceipts[d.id] !== d.updatedAt).length;
-      }, [returnedDrafts, readReceipts]);
+      const { peerId, pinCode, connections, hostConn, createRoom, connectToHost, broadcast, sendToHost, sendToClient } = usePeerCommunication(
+          updateDraftInDB, setSyncStatus, showToast, showMiniToast, setActiveDraft, mode, clientId, handleSyncRequest, handleReceiveReturn
+      );
+
+      const handleConnectWithPin = (pin) => {
+          const draftsInfo = studentDb.reduce((acc, d) => { acc[d.id] = d.updatedTimestamp || 0; return acc; }, {});
+          connectToHost(pin, draftsInfo);
+      };
+
+      const unreadCount = useMemo(() => returnedDrafts.filter(d => readReceipts[d.id] !== d.updatedAt).length, [returnedDrafts, readReceipts]);
 
       const handleSwitchMode = async (newMode) => {
         if (newMode === 'teacher') {
-          if (teacherPassword) { handleRefreshTeacher(); setMode('teacher'); } 
-          else { setTeacherAuthModalOpen(true); }
+          const savedPass = localStorage.getItem('teacher_password');
+          if (!savedPass) {
+              setMode('teacher'); 
+              showToast('先生モードに切り替えました。設定からパスワードを設定できます。', 'success');
+          } else {
+              setTeacherAuthModalOpen(true);
+          }
         } else { setMode(newMode); }
       };
 
-      const handleTeacherAuth = async (pass) => {
-        if (!pass) return;
-        setTeacherAuthModalOpen(false); showLoading(<><Rb t="認証" r="にんしょう"/>とデータ<Rb t="取得中" r="しゅとくちゅう"/>...</>);
-        try {
-          const res = await runGAS('getDraftList', 'teacher', pass);
-          if (res.status === 'success') { setDb(res.data); setTeacherPassword(pass); setMode('teacher'); showToast('ログインしました', 'success'); } 
-          else { showToast(res.message, 'error'); }
-        } catch (e) { showToast(<><Rb t="通信" r="つうしん"/>エラーが<Rb t="発生" r="はっせい"/>しました</>, 'error'); } 
-        finally { hideLoading(); }
-      };
-
-      const handleSaveDraft = async (isSubmit = false) => {
-        showLoading(isSubmit ? <><Rb t="提出中" r="ていしゅつちゅう"/>...</> : <><Rb t="保存中" r="ほぞんちゅう"/>...</>);
-        try {
-          const res = await runGAS('saveOrSubmitDraft', activeDraft, isSubmit);
-          if (res.status === 'success') {
-            setActiveDraft(prev => ({ ...prev, id: res.id, status: res.docStatus }));
-            showToast(isSubmit ? <><Rb t="先生" r="せんせい"/>に<Rb t="提出" r="ていしゅつ"/>しました！</> : <><Rb t="保存" r="ほぞん"/>しました</>, 'success');
-          } else { showToast(res.message, 'error'); }
-        } catch (e) {
-          if(e.message === 'OFFLINE_QUEUED') {
-              // 提出時は状態だけローカルで変えておく
-              if (isSubmit) setActiveDraft(prev => ({ ...prev, status: 'submitted' }));
-              showToast('オフラインのため端末に保存しました。通信回復時に自動で送信されます。', 'success');
-          } else {
-              showToast(<>サーバーと<Rb t="通信" r="つうしん"/>できませんでした</>, 'error');
-          }
-        } finally { hideLoading(); }
-      };
-
-      const openLoadModal = async () => {
-        showLoading(<><Rb t="保存" r="ほぞん"/>されたデータを<Rb t="探" r="さが"/>しています...</>);
-        try {
-          const res = await runGAS('getDraftList', 'student');
-          if (res.status === 'success') { setDb(res.data); setLoadModalOpen(true); } 
-          else { showToast(res.message, 'error'); }
-        } catch (e) { showToast('通信エラー', 'error'); } 
-        finally { hideLoading(); }
-      };
-
-      // 楽観的UIを適用したステータス更新
-      const updateTeacherStatus = async (id, newStatus) => {
-        const targetDraft = db.find(d => d.id === id); if (!targetDraft) return;
-        const prevStatus = targetDraft.status;
-        const dataToSave = { ...targetDraft, status: newStatus };
-        
-        // 即座にUI更新 (Loadingを出さない)
-        updateDraftInDB(dataToSave);
-        showMiniToast(`ステータスを「${newStatus === 'completed' ? '完了' : '再提出'}」にしました`);
-
-        try {
-          // ★ 修正：先生は提出フラグを立ててはいけないので常に false
-          await runGAS('saveOrSubmitDraft', dataToSave, false);
-        } catch (e) {
-          if (e.message !== 'OFFLINE_QUEUED') {
-              // 失敗時のみロールバック
-              updateDraftInDB({ ...targetDraft, status: prevStatus });
-              showToast('通信エラーのため元に戻しました', 'error');
-          }
+      const handleTeacherAuth = (pass) => {
+        const savedPass = localStorage.getItem('teacher_password');
+        if (pass === savedPass) {
+            setTeacherAuthModalOpen(false); 
+            setMode('teacher'); 
+            showToast('ログインしました', 'success');
+        } else {
+            showToast('パスワードが間違っています', 'error');
         }
       };
 
-      const updateDraftInDB = useCallback((updatedDraft) => {
-          setDb(prev => prev.map(d => d.id === updatedDraft.id ? updatedDraft : d));
-          if (activeDraft.id === updatedDraft.id) setActiveDraft(updatedDraft);
-      }, [activeDraft.id]);
+      const handleSaveDraft = (isSubmit = false, isBackground = false, specificDraft = null) => {
+        const targetDraft = specificDraft || activeDraft;
+        const now = new Date();
+        const draftToSend = { 
+            ...targetDraft, 
+            status: isSubmit ? 'submitted' : targetDraft.status, 
+            updatedAt: now.toLocaleString('ja-JP'),
+            updatedTimestamp: now.getTime(),
+            clientId: clientId 
+        };
+        
+        updateStudentDb(draftToSend);
+        if (!specificDraft) setActiveDraft(draftToSend);
 
-      const handleRefreshTeacher = async () => {
-        showLoading('更新中...');
-        try {
-          const res = await runGAS('getDraftList', 'teacher', teacherPassword);
-          if (res.status === 'success') { setDb(res.data); showToast('最新のリストを取得しました'); } 
-          else { showToast(res.message, 'error'); }
-        } catch (e) { showToast('通信エラー', 'error'); } 
-        finally { hideLoading(); }
+        const p2pSent = sendToHost({ type: 'submission', data: draftToSend });
+
+        if (!isBackground) {
+            if (isSubmit) {
+                if (p2pSent) showToast('せんせいに ていしゅつ しました！', 'success');
+                else showToast('せんせいと せつぞく されていないため ていしゅつ できません', 'error');
+            } else {
+                showToast(p2pSent ? 'せんせいと どうきし、たんまつにも ほぞん しました' : 'たんまつに ほぞん しました', 'success');
+            }
+        }
+      };
+
+      const updateTeacherStatus = (id, newStatus) => {
+        const targetDraft = db.find(d => d.id === id); if (!targetDraft) return;
+        const dataToSave = { ...targetDraft, status: newStatus, updatedTimestamp: Date.now() };
+        updateDraftInDB(dataToSave);
+        showMiniToast(`ステータスを「${newStatus === 'completed' ? '完了' : '再提出'}」にしました`);
+        if (dataToSave.peerId) sendToClient(dataToSave.peerId, { type: 'return', data: dataToSave });
       };
 
       const handleNewDraft = () => {
@@ -1602,7 +1690,7 @@
       };
 
       const executeNewDraft = () => {
-        setActiveDraft({ title: '', class: '', name: '', content: '', status: 'draft', correction: '' });
+        setActiveDraft({ id: crypto.randomUUID(), title: '', class: '', name: '', content: '', status: 'draft', correction: '' });
         setIsNewConfirmOpen(false);
       };
 
@@ -1611,84 +1699,95 @@
           else setSettingsModalOpen(true);
       };
 
-      // 生徒用：保存したデータを開くモーダル内の検索ステート
+      const fileInputRef = useRef(null);
+      const handleFileChange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (event) => {
+              try {
+                  const data = JSON.parse(event.target.result);
+                  const newDraft = { ...data, id: data.id || crypto.randomUUID() };
+                  updateStudentDb(newDraft);
+                  setActiveDraft(newDraft);
+                  setLoadModalOpen(false);
+                  showToast('さくひんを よみこみました', 'success');
+              } catch(err) {
+                  showToast('ファイルの よみこみに しっぱい しました', 'error');
+              }
+          };
+          reader.readAsText(file);
+          e.target.value = ''; 
+      };
+
       const [loadSearchQuery, setLoadSearchQuery] = useState('');
-      const [loadStartDate, setLoadStartDate] = useState('');
-      const [loadEndDate, setLoadEndDate] = useState('');
       const filteredLoadData = useMemo(() => {
-          return db.filter(d => {
+          return studentDb.filter(d => {
               if (loadSearchQuery) {
                   const q = loadSearchQuery.toLowerCase();
                   if (!(d.title?.toLowerCase().includes(q) || d.name?.toLowerCase().includes(q) || d.content?.toLowerCase().includes(q))) return false;
               }
-              if (loadStartDate || loadEndDate) {
-                  const itemDate = d.updatedAt.split(' ')[0];
-                  if (loadStartDate && itemDate < loadStartDate.replace(/-/g, '/')) return false;
-                  if (loadEndDate && itemDate > loadEndDate.replace(/-/g, '/')) return false;
-              }
               return true;
           });
-      }, [db, loadSearchQuery, loadStartDate, loadEndDate]);
+      }, [studentDb, loadSearchQuery]);
 
-      const handleOpenReturnedDraft = async (d) => {
-          // 既読処理
-          const newReceipts = { ...readReceipts, [d.id]: d.updatedAt };
-          setReadReceipts(newReceipts);
-          localStorage.setItem(READ_RECEIPTS_KEY, JSON.stringify(newReceipts));
+      const SyncBadge = () => {
+          if (mode === 'teacher') return null;
           
-          if (activeDraft.content || activeDraft.title) {
-              const confirmResult = await Swal.fire({
-                  title: '作業中の内容があります',
-                  text: '返却された作文を開くと、現在入力中の内容は消えてしまいます。開きますか？',
-                  icon: 'warning',
-                  showCancelButton: true,
-                  confirmButtonColor: '#ef4444',
-                  cancelButtonColor: '#94a3b8',
-                  confirmButtonText: '開く（今の内容は破棄）',
-                  cancelButtonText: 'キャンセル'
-              });
-              if (!confirmResult.isConfirmed) return;
+          let icon = "bi-cloud-slash";
+          let text = "オフライン";
+          let colorClass = "text-slate-500 bg-slate-100 border-slate-200";
+
+          if (syncStatus === 'connecting') {
+              icon = "bi-arrow-repeat animate-spin"; text = <><Rb t="接続中" r="せつぞくちゅう"/>...</>; colorClass = "text-blue-600 bg-blue-50 border-blue-200";
+          } else if (syncStatus === 'connected' || syncStatus === 'saved') {
+              icon = "bi-cloud-check-fill"; text = <><Rb t="先生" r="せんせい"/>と<Rb t="同期済" r="どうきずみ"/></>; colorClass = "text-emerald-600 bg-emerald-50 border-emerald-200 shadow-sm";
+          } else if (syncStatus === 'saving') {
+              icon = "bi-cloud-arrow-up-fill animate-pulse"; text = <><Rb t="保存" r="ほぞん"/>・<Rb t="同期中" r="どうきちゅう"/>...</>; colorClass = "text-blue-600 bg-blue-50 border-blue-200";
           }
-          
-          showLoading(<><Rb t="読" r="よ"/>み<Rb t="込" r="こ"/>み<Rb t="中" r="ちゅう"/>...</>);
-          try {
-              const res = await runGAS('loadDraft', d.id);
-              if (res.status === 'success') {
-                  setActiveDraft(res.data);
-                  setNotificationModalOpen(false);
-              } else {
-                  showToast(res.message, 'error');
-              }
-          } catch(e) {
-              showToast('通信エラー', 'error');
-          } finally {
-              hideLoading();
-          }
+
+          return (
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-300 ${colorClass}`}>
+                  <i className={`bi ${icon} text-sm`}></i>
+                  <span className="hidden sm:inline">{text}</span>
+              </div>
+          );
       };
 
       return (
-        <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-blue-200">
+        <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
           <style>{GLOBAL_STYLES}</style>
           <LoadingOverlay isVisible={loading.isVisible} text={loading.text} />
           <ToastMessage isVisible={toast.isVisible} message={toast.message} type={toast.type} onClose={() => setToast(prev => ({...prev, isVisible: false}))} />
           <MiniToast isVisible={miniToast.isVisible} message={miniToast.message} type={miniToast.type} onClose={() => setMiniToast(prev => ({...prev, isVisible: false}))} />
           <TeacherAuthModal isOpen={isTeacherAuthModalOpen} onClose={() => setTeacherAuthModalOpen(false)} onSubmit={handleTeacherAuth} />
-          <TeacherSettingsModal isOpen={isTeacherSettingsModalOpen} onClose={() => setIsTeacherSettingsModalOpen(false)} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} />
+          <TeacherSettingsModal isOpen={isTeacherSettingsModalOpen} onClose={() => setIsTeacherSettingsModalOpen(false)} db={db} setDb={setDb} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} />
+          <ConnectModal isOpen={isConnectModalOpen} onClose={() => setIsConnectModalOpen(false)} onConnect={handleConnectWithPin} />
 
           <nav className="flex-shrink-0 z-40 w-full bg-white border-b border-slate-200 shadow-sm transition-colors duration-300 no-print" style={{ borderBottomColor: mode === 'teacher' ? '#f43f5e' : '#3b82f6', borderBottomWidth: '3px' }}>
             <div className="px-6 py-2.5 flex items-center justify-between w-full">
-              <button onClick={() => handleSwitchMode('student')} className="flex items-center gap-3 hover:opacity-80 transition-all active:scale-95">
-                <div className={`p-2 rounded-xl text-white shadow-sm transition-colors ${mode === 'teacher' ? 'bg-rose-500' : 'bg-blue-500'}`}>
+              <button onClick={() => handleSwitchMode('student')} className="flex items-center gap-3 hover:opacity-80 transition-all active:scale-95 group">
+                <div className={`p-2 rounded-xl text-white shadow-sm transition-colors ${mode === 'teacher' ? 'bg-rose-500 group-hover:bg-rose-600' : 'bg-blue-500 group-hover:bg-blue-600'}`}>
                   <i className="bi bi-pencil-square text-[24px]"></i>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className={`font-bold text-xl tracking-wide pt-2 ${mode === 'teacher' ? 'text-rose-600' : 'text-blue-600'}`}>
+                  <span className={`font-bold text-xl tracking-wide pt-2 leading-loose transition-colors ${mode === 'teacher' ? 'text-rose-600 group-hover:text-rose-700' : 'text-blue-600 group-hover:text-blue-700'}`}>
                     オンライン<Rb t="原稿用紙" r="げんこうようし"/>
                   </span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold text-white shadow-sm ${mode === 'teacher' ? 'bg-rose-500' : 'bg-blue-500'}`}>Pro</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold text-white shadow-sm transition-colors ${mode === 'teacher' ? 'bg-rose-500' : 'bg-blue-500'}`}>Pro</span>
                 </div>
               </button>
-              <div className="flex items-center gap-3">
+
+              <div className="flex items-center gap-3 ml-4">
+                  <SyncBadge />
+                  {mode === 'student' && syncStatus === 'offline' && (
+                      <button onClick={() => setIsConnectModalOpen(true)} className="flex items-center gap-1.5 text-white bg-blue-500 hover:bg-blue-600 hover:shadow-lg px-4 py-1.5 rounded-full text-sm font-bold shadow-md transition-all active:scale-95">
+                          <i className="bi bi-link-45deg text-lg -mt-1"></i> <Rb t="先生" r="せんせい"/>と<Rb t="接続" r="せつぞく"/>
+                      </button>
+                  )}
+              </div>
+
+              <div className="flex items-center gap-3 ml-auto">
                 {mode === 'student' && returnedDrafts.length > 0 && (
                     <button onClick={() => setNotificationModalOpen(true)} className="relative p-2 pt-3 text-amber-500 hover:bg-slate-100 rounded-full transition-all active:scale-95" title="通知">
                         <i className="bi bi-bell-fill text-[22px]"></i>
@@ -1710,8 +1809,8 @@
           </nav>
 
           <main className="flex-1 overflow-hidden flex flex-col no-print relative">
-            {mode === 'student' && <StudentView draft={activeDraft} settings={settings} updateDraft={(updates) => setActiveDraft(prev => ({...prev, ...updates}))} onSave={handleSaveDraft} onNew={handleNewDraft} openLoadModal={openLoadModal} showToast={showToast} showMiniToast={showMiniToast} showLoading={showLoading} hideLoading={hideLoading} />}
-            {mode === 'teacher' && <TeacherView db={db} settings={settings} updateStatus={updateTeacherStatus} updateDraftInDB={updateDraftInDB} onRefresh={handleRefreshTeacher} selectedId={teacherSelectedId} setSelectedId={setTeacherSelectedId} setGlobalPrintDrafts={setGlobalPrintDrafts} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} showMiniToast={showMiniToast} />}
+            {mode === 'student' && <StudentView draft={activeDraft} settings={settings} updateDraft={setActiveDraft} onSave={handleSaveDraft} onNew={handleNewDraft} setSyncStatus={setSyncStatus} setLoadModalOpen={setLoadModalOpen} showToast={showToast} showMiniToast={showMiniToast} showLoading={showLoading} hideLoading={hideLoading} sendToHost={sendToHost} studentDb={studentDb} />}
+            {mode === 'teacher' && <TeacherView db={db} setDb={setDb} settings={settings} updateStatus={updateTeacherStatus} updateDraftInDB={updateDraftInDB} selectedId={teacherSelectedId} setSelectedId={setTeacherSelectedId} setGlobalPrintDrafts={setGlobalPrintDrafts} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} showMiniToast={showMiniToast} peerId={peerId} pinCode={pinCode} connections={connections} createRoom={createRoom} broadcast={broadcast} sendToClient={sendToClient} />}
           </main>
 
           <footer className="flex-shrink-0 w-full bg-white border-t border-slate-200 pt-3 pb-2 text-center text-sm text-slate-500 font-bold no-print z-40 shadow-sm relative">
@@ -1726,39 +1825,32 @@
              ))}
           </div>
 
-          {/* モーダル群 (新規確認、ロード、通知、設定) */}
           <Modal isOpen={isNewConfirmOpen} onClose={() => setIsNewConfirmOpen(false)} title={<><Rb t="新規作成" r="しんきさくせい"/>の<Rb t="確認" r="かくにん"/></>} maxWidth="max-w-md">
               <div className="space-y-4">
-                  <p className="text-slate-700 font-bold leading-relaxed">
-                      げんざい<Rb t="書" r="か"/>いている<Rb t="内容" r="ないよう"/>はクリアされます。<br/>
-                      <span className="text-sm text-blue-500">（<Rb t="保存" r="ほぞん"/>していない<Rb t="場合" r="ばあい"/>は<Rb t="消" r="き"/>えてしまいます）</span><br/><br/>
-                      ほんとうに あたらしく<Rb t="書" r="か"/>きはじめますか？
+                  <p className="text-slate-700 font-bold leading-[2.5] pt-2">
+                      <Rb t="現在" r="げんざい"/><Rb t="書" r="か"/>いている<Rb t="内容" r="ないよう"/>はクリアされます。<br/>
+                      <span className="text-sm text-blue-500 leading-[2.5]">（<Rb t="保存" r="ほぞん"/>していない<Rb t="場合" r="ばあい"/>は<Rb t="消" r="き"/>えてしまいます）</span><br/><br/>
+                      <Rb t="本当" r="ほんとう"/>に<Rb t="新" r="あたら"/>しく<Rb t="書" r="か"/>き<Rb t="始" r="はじ"/>めますか？
                   </p>
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex gap-3 pt-4 border-t border-slate-100">
                       <button onClick={() => setIsNewConfirmOpen(false)} className="flex-1 py-3 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 transition-all active:scale-95">キャンセル</button>
-                      <button onClick={executeNewDraft} className="flex-1 py-3 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-600 transition-all active:scale-95 shadow-sm">あたらしく<Rb t="書" r="か"/>く</button>
+                      <button onClick={executeNewDraft} className="flex-1 py-3 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-600 transition-all active:scale-95 shadow-sm"><Rb t="新" r="あたら"/>しく<Rb t="書" r="か"/>く</button>
                   </div>
               </div>
           </Modal>
 
           <Modal isOpen={isLoadModalOpen} onClose={() => setLoadModalOpen(false)} title={<><Rb t="保存" r="ほぞん"/>した<Rb t="作品" r="さくひん"/>を<Rb t="開" r="ひら"/>く</>} maxWidth="max-w-xl">
-              {db.length === 0 ? <div className="text-center text-slate-400 py-10 pt-12 font-bold"><Rb t="保存" r="ほぞん"/>されたデータがありません</div> : (
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="space-y-4 flex flex-col h-full max-h-[60vh]">
+                  <div className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 shrink-0">
                     <div className="relative">
                         <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                        <input type="text" placeholder="キーワードでさがす" value={loadSearchQuery} onChange={(e)=>setLoadSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all font-bold" />
-                    </div>
-                    <div className="flex gap-2 items-center">
-                        <input type="date" value={loadStartDate} onChange={(e)=>setLoadStartDate(e.target.value)} className="flex-1 border border-slate-200 rounded-lg text-sm py-2 px-2 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 bg-white transition-all text-slate-600 text-center font-bold" />
-                        <span className="text-slate-400 font-bold">〜</span>
-                        <input type="date" value={loadEndDate} onChange={(e)=>setLoadEndDate(e.target.value)} className="flex-1 border border-slate-200 rounded-lg text-sm py-2 px-2 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 bg-white transition-all text-slate-600 text-center font-bold" />
+                        <input type="text" placeholder="キーワードで探す" value={loadSearchQuery} onChange={(e)=>setLoadSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all font-bold" />
                     </div>
                   </div>
                   
-                  <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2 hide-scrollbar">
+                  <div className="flex-1 space-y-2 overflow-y-auto pr-2 hide-scrollbar min-h-[200px]">
                       {filteredLoadData.length === 0 ? (
-                          <div className="text-center text-slate-400 py-6 font-bold">みつかりませんでした</div>
+                          <div className="text-center text-slate-400 py-10 font-bold leading-loose"><Rb t="見" r="み"/>つかりませんでした</div>
                       ) : (
                           filteredLoadData.map(d => (
                             <div key={d.id} onClick={() => { setActiveDraft(d); setLoadModalOpen(false); }} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-md cursor-pointer transition-all active:scale-[0.98] group">
@@ -1776,12 +1868,19 @@
                           ))
                       )}
                   </div>
+
+                  <div className="pt-4 border-t border-slate-200 shrink-0">
+                      <p className="text-xs text-slate-500 font-bold mb-3 mt-2 text-center leading-loose">または、<Rb t="先生" r="せんせい"/>からもらったファイルを<Rb t="開" r="ひら"/>く</p>
+                      <input type="file" accept=".json" style={{display: 'none'}} ref={fileInputRef} onChange={handleFileChange} />
+                      <button onClick={() => fileInputRef.current.click()} className="w-full py-3 bg-slate-100 text-slate-700 font-bold rounded-xl border border-slate-300 hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm">
+                          <i className="bi bi-file-earmark-arrow-up"></i> ファイルから<Rb t="読" r="よ"/>み<Rb t="込" r="こ"/>む
+                      </button>
+                  </div>
                 </div>
-              )}
           </Modal>
 
           <Modal isOpen={isNotificationModalOpen} onClose={() => setNotificationModalOpen(false)} title={<><i className="bi bi-bell-fill text-amber-500 mr-2"></i><Rb t="先生" r="せんせい"/>からの<Rb t="返却" r="へんきゃく"/></>} maxWidth="max-w-xl">
-              {returnedDrafts.length === 0 ? <div className="text-center text-slate-400 py-10 pt-12 font-bold">まだ<Rb t="返却" r="へんきゃく"/>されたものはありません</div> : (
+              {returnedDrafts.length === 0 ? <div className="text-center text-slate-400 py-10 pt-12 font-bold leading-loose">まだ<Rb t="返却" r="へんきゃく"/>されたものはありません</div> : (
                 <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2 hide-scrollbar">
                   {returnedDrafts.map(d => {
                       const isUnread = readReceipts[d.id] !== d.updatedAt;
@@ -1790,14 +1889,19 @@
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                   <span className={`text-xs font-bold px-2 py-0.5 rounded shadow-sm text-white ${d.status === 'completed' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                                      {d.status === 'completed' ? '完了' : '再提出'}
+                                      {d.status === 'completed' ? <Rb t="完了" r="かんりょう"/> : <Rb t="再提出" r="さいていしゅつ"/>}
                                   </span>
-                                  {isUnread && <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-sm animate-pulse">New</span>}
+                                  {isUnread && <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-sm animate-pulse shadow-sm">New</span>}
                               </div>
                               <div className="font-bold text-slate-800 text-lg pt-2 truncate mt-1">{d.title || <Rb t="無題" r="むだい"/>}</div>
-                              <div className="text-xs text-slate-500 mt-1">{d.updatedAt}</div>
                             </div>
-                            <button onClick={() => handleOpenReturnedDraft(d)} className={`shrink-0 ml-4 px-4 py-2 rounded-lg font-bold transition-all active:scale-95 ${isUnread ? 'bg-amber-500 text-white shadow-sm hover:bg-amber-600' : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
+                            <button onClick={() => {
+                                const newReceipts = { ...readReceipts, [d.id]: d.updatedAt };
+                                setReadReceipts(newReceipts);
+                                localStorage.setItem(READ_RECEIPTS_KEY, JSON.stringify(newReceipts));
+                                setActiveDraft(d);
+                                setNotificationModalOpen(false);
+                            }} className={`shrink-0 ml-4 px-4 py-2 rounded-lg font-bold transition-all active:scale-95 ${isUnread ? 'bg-amber-500 text-white shadow-sm hover:bg-amber-600 hover:shadow-md' : 'bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 shadow-sm'}`}>
                                 <Rb t="確認" r="かくにん"/>する
                             </button>
                           </div>
@@ -1810,33 +1914,33 @@
           <Modal isOpen={isSettingsModalOpen} onClose={() => setSettingsModalOpen(false)} title={<><Rb t="設定" r="せってい"/></>} maxWidth="max-w-md">
             <div className="space-y-6">
               <div>
-                <h4 className="font-bold text-slate-700 mb-3 pt-2"><Rb t="用紙" r="ようし"/>の<Rb t="文字数" r="もじすう"/></h4>
+                <h4 className="font-bold text-slate-700 mb-3 pt-3 leading-loose"><Rb t="用紙" r="ようし"/>の<Rb t="文字数" r="もじすう"/></h4>
                 <div className="space-y-3">
                   <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-blue-50/50 transition-colors active:scale-[0.98]">
                     <input type="radio" name="chars" checked={settings.charsPerLine === 20} onChange={() => setSettings({...settings, charsPerLine: 20})} className="w-4 h-4 text-blue-500 focus:ring-blue-500" />
-                    <span className="font-bold text-slate-700 pt-2">20<Rb t="文字" r="もじ"/> × 20<Rb t="行" r="ぎょう"/> (<Rb t="高学年" r="こうがくねん"/>)</span>
+                    <span className="font-bold text-slate-700 pt-2 leading-[2.5]">20<Rb t="文字" r="もじ"/> × 20<Rb t="行" r="ぎょう"/> (<Rb t="高学年" r="こうがくねん"/>)</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-blue-50/50 transition-colors active:scale-[0.98]">
                     <input type="radio" name="chars" checked={settings.charsPerLine === 15} onChange={() => setSettings({...settings, charsPerLine: 15})} className="w-4 h-4 text-blue-500 focus:ring-blue-500" />
-                    <span className="font-bold text-slate-700 pt-2">15<Rb t="文字" r="もじ"/> × 16<Rb t="行" r="ぎょう"/> (<Rb t="低学年" r="ていがくねん"/>)</span>
+                    <span className="font-bold text-slate-700 pt-2 leading-[2.5]">15<Rb t="文字" r="もじ"/> × 16<Rb t="行" r="ぎょう"/> (<Rb t="低学年" r="ていがくねん"/>)</span>
                   </label>
                 </div>
               </div>
               <div>
-                <h4 className="font-bold text-slate-700 mb-3 pt-2"><Rb t="禁則処理" r="きんそくしょり"/></h4>
+                <h4 className="font-bold text-slate-700 mb-3 pt-3 leading-loose"><Rb t="禁則処理" r="きんそくしょり"/></h4>
                 <div className="space-y-3">
                   <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-blue-50/50 transition-colors active:scale-[0.98]">
                     <input type="radio" name="kinsoku" checked={settings.kinsokuMode === 'oidashi'} onChange={() => setSettings({...settings, kinsokuMode: 'oidashi'})} className="w-4 h-4 text-blue-500 focus:ring-blue-500" />
-                    <span className="font-bold text-slate-700 pt-2"><Rb t="追" r="お"/>い<Rb t="出" r="だ"/>し（<Rb t="前行末" r="ぜんぎょうまつ"/>の<Rb t="文字" r="もじ"/>を<Rb t="次行" r="じぎょう"/>に<Rb t="送" r="おく"/>る）</span>
+                    <span className="font-bold text-slate-700 pt-2 leading-[2.5]"><Rb t="追" r="お"/>い<Rb t="出" r="だ"/>し（<Rb t="前行末" r="ぜんぎょうまつ"/>の<Rb t="文字" r="もじ"/>を<Rb t="次行" r="じぎょう"/>に<Rb t="送" r="おく"/>る）</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-blue-50/50 transition-colors active:scale-[0.98]">
                     <input type="radio" name="kinsoku" checked={settings.kinsokuMode === 'burasagari'} onChange={() => setSettings({...settings, kinsokuMode: 'burasagari'})} className="w-4 h-4 text-blue-500 focus:ring-blue-500" />
-                    <span className="font-bold text-slate-700 pt-2">ぶら<Rb t="下" r="さ"/>がり（マス<Rb t="外" r="そと"/>に<Rb t="小" r="ちい"/>さく<Rb t="表示" r="ひょうじ"/>）</span>
+                    <span className="font-bold text-slate-700 pt-2 leading-[2.5]">ぶら<Rb t="下" r="さ"/>がり（マス<Rb t="外" r="そと"/>に<Rb t="小" r="ちい"/>さく<Rb t="表示" r="ひょうじ"/>）</span>
                   </label>
                 </div>
               </div>
-              <div className="flex justify-end pt-4 border-t border-slate-100">
-                <button onClick={() => setSettingsModalOpen(false)} className="px-6 pt-4 pb-2 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-700 transition-all active:scale-95 shadow-sm"><Rb t="保存" r="ほぞん"/>して<Rb t="閉" r="と"/>じる</button>
+              <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+                <button onClick={() => setSettingsModalOpen(false)} className="px-6 pt-4 pb-3 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-700 hover:shadow-lg transition-all active:scale-95 shadow-md"><Rb t="保存" r="ほぞん"/>して<Rb t="閉" r="と"/>じる</button>
               </div>
             </div>
           </Modal>
