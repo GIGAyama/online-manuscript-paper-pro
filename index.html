@@ -216,7 +216,7 @@
             });
             lines.push(line);
         });
-        if (lines.length === 0 || title) lines.push(createEmptyLine());
+        if (lines.length === 0 && !title) lines.push(createEmptyLine());
         
         const footerText = `${className || ''} ${name || ''}`.trim();
         if (footerText) {
@@ -225,7 +225,7 @@
             footerText.split('').forEach((char, i) => {
                 if (start + i < chars) line[start + i] = { c: char, idx: null };
             });
-            lines.push(line, createEmptyLine());
+            lines.push(line);
         }
 
         const noStart = ['、','。','」','』','）','っ','ゃ','ゅ','ょ','ッ','ャ','ュ','ョ','ー',',','.','」','』',']','}','>','ぁ','ぃ','ぅ','ぇ','ぉ','ァ','ィ','ゥ','ェ','ォ','ヮ','ヵ','ヶ','・','？','！','‼','⁇','々'];
