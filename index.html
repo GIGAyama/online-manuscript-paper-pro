@@ -920,51 +920,51 @@
         return (
             <div className="flex-1 flex flex-col lg:flex-row gap-2 lg:gap-4 p-2 lg:p-4 min-h-0 bg-slate-50 overflow-y-auto lg:overflow-hidden pb-12 lg:pb-4">
                 <div className="contents lg:flex lg:flex-col lg:w-1/3 lg:min-w-[320px] lg:max-w-[450px] lg:bg-white lg:rounded-2xl lg:shadow-sm lg:border lg:border-slate-200 lg:overflow-hidden lg:ring-1 lg:ring-slate-900/5 lg:h-full">
-                    <div className="order-1 lg:order-none flex-1 overflow-visible lg:overflow-auto p-4 sm:p-5 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 ring-1 ring-slate-900/5 lg:bg-transparent lg:rounded-none lg:shadow-none lg:border-none lg:ring-0 shrink-0 lg:shrink min-h-[300px] lg:min-h-0">
-                        <div className="flex justify-between items-center mb-3 sm:mb-4 shrink-0">
+                    <div className="order-1 lg:order-none flex-1 overflow-visible lg:overflow-auto p-4 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 ring-1 ring-slate-900/5 lg:bg-transparent lg:rounded-none lg:shadow-none lg:border-none lg:ring-0 shrink-0 lg:shrink min-h-[300px] lg:min-h-0">
+                        <div className="flex justify-between items-center mb-2 sm:mb-3 shrink-0">
                             <div className="flex items-center gap-2 sm:gap-3">
-                                <span className="text-xs sm:text-sm font-bold text-slate-500 pt-1 sm:pt-2 leading-loose"><Rb t="基本情報" r="きほんじょうほう"/></span>
+                                <span className="text-xs sm:text-sm font-bold text-slate-500 pt-1 leading-normal"><Rb t="基本情報" r="きほんじょうほう"/></span>
                                 {isLocked && (
-                                    <span className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold shadow-sm flex items-center gap-1 mt-1 ${isCompleted ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                                    <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold shadow-sm flex items-center gap-1 mt-1 ${isCompleted ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
                                         <i className="bi bi-lock-fill -mt-0.5"></i> <span className="leading-relaxed">{isCompleted ? <><Rb t="完了" r="かんりょう"/>のため<Rb t="編集不可" r="へんしゅうふか"/></> : <><Rb t="提出済" r="ていしゅつずみ"/>のため<Rb t="編集不可" r="へんしゅうふか"/></>}</span>
                                     </span>
                                 )}
                                 {!isLocked && hasDiff && (
-                                    <span className="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded text-[10px] sm:text-xs font-bold bg-blue-50 text-blue-700 shadow-sm border border-blue-200 flex items-center gap-1 mt-1">
+                                    <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold bg-blue-50 text-blue-700 shadow-sm border border-blue-200 flex items-center gap-1 mt-1">
                                         <i className="bi bi-info-circle -mt-0.5"></i> <span className="leading-relaxed"><Rb t="前回" r="ぜんかい"/>からの<Rb t="変更" r="へんこう"/>あり</span>
                                     </span>
                                 )}
                             </div>
-                            <span className={`pt-1 sm:pt-2 pb-0.5 sm:pb-1 px-2 sm:px-3 rounded-full text-[10px] sm:text-xs font-bold text-white shadow-sm leading-loose ${localDraft.status==='submitted'?'bg-blue-500':localDraft.status==='completed'?'bg-emerald-500':localDraft.status==='rework'?'bg-amber-500':'bg-slate-400'}`}>
+                            <span className={`pt-1 pb-0.5 px-2 sm:px-3 rounded-full text-[10px] sm:text-xs font-bold text-white shadow-sm leading-normal ${localDraft.status==='submitted'?'bg-blue-500':localDraft.status==='completed'?'bg-emerald-500':localDraft.status==='rework'?'bg-amber-500':'bg-slate-400'}`}>
                                 {localDraft.status==='submitted' ? <Rb t="提出済" r="ていしゅつずみ"/> : localDraft.status==='completed' ? <Rb t="完了" r="かんりょう"/> : localDraft.status==='rework' ? <Rb t="再提出" r="さいていしゅつ"/> : <><Rb t="下書" r="したが"/>き</>}
                             </span>
                         </div>
                         
-                        <input type="text" readOnly={isLocked} placeholder="題名" value={localDraft.title} onChange={e=>setLocalDraft(prev=>({...prev, title:e.target.value}))} className={`shrink-0 w-full px-3 py-2 sm:px-4 sm:py-3 mb-2 sm:mb-3 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 font-bold text-base sm:text-lg transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
-                        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4 shrink-0">
-                            <input type="text" readOnly={isLocked} placeholder="学年・クラス" value={localDraft.class} onChange={e=>setLocalDraft(prev=>({...prev, class:e.target.value}))} className={`w-1/3 px-3 py-1.5 sm:px-4 sm:py-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all text-sm sm:text-base ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
-                            <input type="text" readOnly={isLocked} placeholder="名前" value={localDraft.name} onChange={e=>setLocalDraft(prev=>({...prev, name:e.target.value}))} className={`flex-1 px-3 py-1.5 sm:px-4 sm:py-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all text-sm sm:text-base ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
+                        <input type="text" readOnly={isLocked} placeholder="題名" value={localDraft.title} onChange={e=>setLocalDraft(prev=>({...prev, title:e.target.value}))} className={`shrink-0 w-full px-3 py-2 mb-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 font-bold text-base sm:text-lg transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
+                        <div className="flex gap-2 mb-2 shrink-0">
+                            <input type="text" readOnly={isLocked} placeholder="学年・クラス" value={localDraft.class} onChange={e=>setLocalDraft(prev=>({...prev, class:e.target.value}))} className={`w-1/3 px-3 py-1.5 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all text-sm sm:text-base ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
+                            <input type="text" readOnly={isLocked} placeholder="名前" value={localDraft.name} onChange={e=>setLocalDraft(prev=>({...prev, name:e.target.value}))} className={`flex-1 px-3 py-1.5 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all text-sm sm:text-base ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 hover:bg-slate-50 focus:bg-white text-slate-800'}`} />
                         </div>
 
-                        <textarea onScroll={handleEditorScroll} readOnly={isLocked} placeholder="ここに作文を書いてください..." value={localDraft.content} onChange={e=>setLocalDraft(prev=>({...prev, content:e.target.value}))} className={`flex-1 min-h-[150px] sm:min-h-[250px] w-full p-4 sm:p-5 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none leading-loose text-base sm:text-lg mb-2 shadow-inner transition-all hide-scrollbar lined-textarea ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-blue-50/20 hover:bg-blue-50/40 focus:bg-white text-slate-800'}`} />
-                        <div className="text-right text-xs sm:text-sm text-slate-500 font-bold pt-1 sm:pt-2 leading-loose shrink-0">
+                        <textarea onScroll={handleEditorScroll} readOnly={isLocked} placeholder="ここに作文を書いてください..." value={localDraft.content} onChange={e=>setLocalDraft(prev=>({...prev, content:e.target.value}))} className={`flex-1 min-h-[100px] sm:min-h-[120px] w-full p-4 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none leading-loose text-base sm:text-lg mb-1 shadow-inner transition-all hide-scrollbar lined-textarea ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-blue-50/20 hover:bg-blue-50/40 focus:bg-white text-slate-800'}`} />
+                        <div className="text-right text-xs sm:text-sm text-slate-500 font-bold pt-1 leading-normal shrink-0">
                             {(localDraft.content || '').replace(/\n/g, '').length} <Rb t="文字" r="もじ"/>
                         </div>
                     </div>
 
-                    <div className="order-3 lg:order-none p-3 sm:p-4 bg-slate-50 grid grid-cols-2 gap-2 sm:gap-3 shrink-0 rounded-2xl shadow-sm border border-slate-200 ring-1 ring-slate-900/5 lg:rounded-none lg:shadow-none lg:border-x-0 lg:border-b-0 lg:border-t lg:border-slate-100 lg:ring-0">
-                        <button onClick={onNew} className="flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 sm:pt-4 sm:pb-2.5 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 font-bold text-slate-700 transition-all active:scale-95 leading-loose shadow-sm text-sm sm:text-base"><i className="bi bi-plus-lg text-[16px] sm:text-[18px]"></i> <span><Rb t="新規" r="しんき"/></span></button>
-                        <button onClick={() => setLoadModalOpen(true)} className="flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 sm:pt-4 sm:pb-2.5 border border-blue-200 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition-all active:scale-95 leading-loose shadow-sm text-sm sm:text-base"><i className="bi bi-folder2-open text-[16px] sm:text-[18px]"></i> <span><Rb t="開" r="ひら"/>く</span></button>
+                    <div className="order-3 lg:order-none p-3 bg-slate-50 grid grid-cols-2 gap-2 shrink-0 rounded-2xl shadow-sm border border-slate-200 ring-1 ring-slate-900/5 lg:rounded-none lg:shadow-none lg:border-x-0 lg:border-b-0 lg:border-t lg:border-slate-100 lg:ring-0">
+                        <button onClick={onNew} className="flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 font-bold text-slate-700 transition-all active:scale-95 leading-normal shadow-sm text-sm"><i className="bi bi-plus-lg text-[16px]"></i> <span><Rb t="新規" r="しんき"/></span></button>
+                        <button onClick={() => setLoadModalOpen(true)} className="flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 border border-blue-200 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition-all active:scale-95 leading-normal shadow-sm text-sm"><i className="bi bi-folder2-open text-[16px]"></i> <span><Rb t="開" r="ひら"/>く</span></button>
                         
                         {isCompleted ? (
-                            <button onClick={() => setIsDuplicateConfirmOpen(true)} className="col-span-2 flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 sm:pt-4 sm:pb-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 hover:shadow-lg transition-all active:scale-95 shadow-md leading-loose text-sm sm:text-base"><i className="bi bi-files text-[16px] sm:text-[18px]"></i> <span>コピーして<Rb t="新" r="あたら"/>しく<Rb t="書" r="か"/>く</span></button>
+                            <button onClick={() => setIsDuplicateConfirmOpen(true)} className="col-span-2 flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 hover:shadow-lg transition-all active:scale-95 shadow-md leading-normal text-sm"><i className="bi bi-files text-[16px]"></i> <span>コピーして<Rb t="新" r="あたら"/>しく<Rb t="書" r="か"/>く</span></button>
                         ) : isSubmitted ? (
-                            <button disabled className="col-span-2 flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 sm:pt-4 sm:pb-3 bg-slate-300 text-white rounded-xl font-bold leading-loose cursor-not-allowed text-sm sm:text-base"><i className="bi bi-send-check text-[16px] sm:text-[18px]"></i> <span><Rb t="提出済" r="ていしゅつずみ"/>（<Rb t="先生" r="せんせい"/>の<Rb t="確認待" r="かくにんま"/>ち）</span></button>
+                            <button disabled className="col-span-2 flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 bg-slate-300 text-white rounded-xl font-bold leading-normal cursor-not-allowed text-sm"><i className="bi bi-send-check text-[16px]"></i> <span><Rb t="提出済" r="ていしゅつずみ"/>（<Rb t="先生" r="せんせい"/>の<Rb t="確認待" r="かくにんま"/>ち）</span></button>
                         ) : (
                             <>
                                 <div className="flex gap-1 col-span-1">
-                                    <button onClick={() => onSave(false, false, localDraft)} className="flex-1 flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 sm:pt-4 sm:pb-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 hover:shadow-lg transition-all active:scale-95 shadow-md leading-loose text-sm sm:text-base"><i className="bi bi-floppy text-[16px] sm:text-[18px]"></i> <span><Rb t="保存" r="ほぞん"/></span></button>
-                                    <button onClick={handleExportFile} className="px-2 sm:px-3 pt-3 pb-2 sm:pt-4 sm:pb-3 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 transition-all active:scale-95 shadow-sm" title="ファイルに書き出す"><i className="bi bi-download"></i></button>
+                                    <button onClick={() => onSave(false, false, localDraft)} className="flex-1 flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 hover:shadow-lg transition-all active:scale-95 shadow-md leading-normal text-sm"><i className="bi bi-floppy text-[16px]"></i> <span><Rb t="保存" r="ほぞん"/></span></button>
+                                    <button onClick={handleExportFile} className="px-2 sm:px-3 pt-3 pb-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 transition-all active:scale-95 shadow-sm" title="ファイルに書き出す"><i className="bi bi-download"></i></button>
                                 </div>
                                 <button onClick={async () => {
                                     const confirmResult = await Swal.fire({
@@ -978,7 +978,7 @@
                                         cancelButtonText: 'キャンセル'
                                     });
                                     if (confirmResult.isConfirmed) onSave(true, false, localDraft);
-                                }} className="flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 sm:pt-4 sm:pb-3 bg-gradient-to-r from-blue-500 to-blue-400 text-white rounded-xl font-bold hover:from-blue-600 hover:to-blue-500 hover:shadow-lg transition-all active:scale-95 shadow-md leading-loose text-sm sm:text-base"><i className="bi bi-send text-[16px] sm:text-[18px]"></i> <span><Rb t="提出" r="ていしゅつ"/></span></button>
+                                }} className="flex items-center justify-center gap-1 sm:gap-2 pt-3 pb-2 bg-gradient-to-r from-blue-500 to-blue-400 text-white rounded-xl font-bold hover:from-blue-600 hover:to-blue-500 hover:shadow-lg transition-all active:scale-95 shadow-md leading-normal text-sm"><i className="bi bi-send text-[16px]"></i> <span><Rb t="提出" r="ていしゅつ"/></span></button>
                             </>
                         )}
                     </div>
@@ -1794,7 +1794,7 @@
           <ConnectModal isOpen={isConnectModalOpen} onClose={() => setIsConnectModalOpen(false)} onConnect={handleConnectWithPin} />
 
           <nav className="flex-shrink-0 z-40 w-full bg-white border-b border-slate-200 shadow-sm transition-colors duration-300 no-print" style={{ borderBottomColor: mode === 'teacher' ? '#f43f5e' : '#3b82f6', borderBottomWidth: '3px' }}>
-            <div className="px-3 py-2 sm:px-6 sm:py-2.5 flex flex-wrap items-center justify-between w-full gap-y-2">
+            <div className="px-3 py-1.5 sm:px-4 sm:py-2 flex flex-wrap items-center justify-between w-full gap-y-1">
               <button onClick={() => handleSwitchMode('student')} className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-all active:scale-95 group">
                 <div className={`p-1.5 sm:p-2 rounded-xl text-white shadow-sm transition-colors ${mode === 'teacher' ? 'bg-rose-500 group-hover:bg-rose-600' : 'bg-blue-500 group-hover:bg-blue-600'}`}>
                   <i className="bi bi-pencil-square text-[20px] sm:text-[24px]"></i>
@@ -1839,7 +1839,7 @@
             {mode === 'teacher' && <TeacherView db={db} setDb={setDb} settings={settings} updateStatus={updateTeacherStatus} updateDraftInDB={updateDraftInDB} selectedId={teacherSelectedId} setSelectedId={setTeacherSelectedId} setGlobalPrintDrafts={setGlobalPrintDrafts} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} showMiniToast={showMiniToast} peerId={peerId} pinCode={pinCode} connections={connections} createRoom={createRoom} sendToClient={sendToClient} />}
           </main>
 
-          <footer className="flex-shrink-0 w-full bg-white border-t border-slate-200 pt-2 pb-1.5 sm:pt-3 sm:pb-2 text-center text-xs sm:text-sm text-slate-500 font-bold no-print z-40 shadow-sm relative">
+          <footer className="flex-shrink-0 w-full bg-white border-t border-slate-200 pt-1.5 pb-1 sm:pt-2 sm:pb-1.5 text-center text-xs text-slate-500 font-bold no-print z-40 shadow-sm relative">
             ©2026 オンライン原稿用紙 Pro <a href="https://note.com/cute_borage86" target="_blank" rel="noopener noreferrer" className="text-inherit no-underline hover:opacity-80 transition-opacity">GIGA山</a>
           </footer>
 
