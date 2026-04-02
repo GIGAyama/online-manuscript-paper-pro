@@ -876,49 +876,49 @@
             <div className="flex-1 flex gap-4 p-4 min-h-0">
                 {/* 左パネル (エディタ) */}
                 <div className="w-1/3 min-w-[320px] max-w-[450px] bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-                    <div className="flex-1 overflow-auto p-5 flex flex-col">
-                        <div className="flex justify-between items-center mb-4 shrink-0">
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm font-bold text-slate-500 pt-2 leading-loose"><Rb t="基本情報" r="きほんじょうほう"/></span>
+                    <div className="flex-1 overflow-auto p-4 flex flex-col min-h-0">
+                        <div className="flex justify-between items-center mb-2 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-slate-500 pt-1 leading-normal"><Rb t="基本情報" r="きほんじょうほう"/></span>
                                 {isLocked && (
-                                    <span className={`px-2.5 py-1 rounded text-xs font-bold shadow-sm flex items-center gap-1 mt-1 ${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold shadow-sm flex items-center gap-1 mt-1 ${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                                         <i className="bi bi-lock-fill"></i> {isCompleted ? <><Rb t="完了" r="かんりょう"/>のため<Rb t="編集不可" r="へんしゅうふか"/></> : <><Rb t="提出済" r="ていしゅつずみ"/>のため<Rb t="編集不可" r="へんしゅうふか"/></>}
                                     </span>
                                 )}
                                 {!isLocked && hasDiff && (
-                                    <span className="px-2.5 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700 shadow-sm flex items-center gap-1 mt-1">
+                                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700 shadow-sm flex items-center gap-1 mt-1">
                                         <i className="bi bi-info-circle"></i> <Rb t="前回からの変更あり" r="ぜんかいからのへんこうあり"/>
                                     </span>
                                 )}
                             </div>
-                            <span className={`pt-2 pb-1 px-3 rounded-full text-xs font-bold text-white shadow-sm leading-loose ${draft.status==='submitted'?'bg-blue-500':draft.status==='completed'?'bg-emerald-500':draft.status==='rework'?'bg-amber-500':'bg-slate-400'}`}>
+                            <span className={`pt-1 pb-0.5 px-2.5 rounded-full text-xs font-bold text-white shadow-sm leading-normal ${draft.status==='submitted'?'bg-blue-500':draft.status==='completed'?'bg-emerald-500':draft.status==='rework'?'bg-amber-500':'bg-slate-400'}`}>
                                 {draft.status==='submitted' ? <Rb t="提出済" r="ていしゅつずみ"/> : draft.status==='completed' ? <Rb t="完了" r="かんりょう"/> : draft.status==='rework' ? <Rb t="再提出" r="さいていしゅつ"/> : <><Rb t="下書" r="したが"/>き</>}
                             </span>
                         </div>
                         
-                        <input type="text" readOnly={isLocked} placeholder="だいめい" value={draft.title} onChange={e=>updateDraft({title:e.target.value})} className={`shrink-0 w-full px-4 py-3 mb-3 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 font-bold text-lg transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
-                        <div className="flex gap-3 mb-4 shrink-0">
-                            <input type="text" readOnly={isLocked} placeholder="がくねん・くみ" value={draft.class} onChange={e=>updateDraft({class:e.target.value})} className={`w-1/3 px-4 py-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
-                            <input type="text" readOnly={isLocked} placeholder="なまえ" value={draft.name} onChange={e=>updateDraft({name:e.target.value})} className={`flex-1 px-4 py-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
+                        <input type="text" readOnly={isLocked} placeholder="だいめい" value={draft.title} onChange={e=>updateDraft({title:e.target.value})} className={`shrink-0 w-full px-3 py-2 mb-2 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 font-bold text-lg transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
+                        <div className="flex gap-2 mb-2 shrink-0">
+                            <input type="text" readOnly={isLocked} placeholder="がくねん・くみ" value={draft.class} onChange={e=>updateDraft({class:e.target.value})} className={`w-1/3 px-3 py-1.5 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
+                            <input type="text" readOnly={isLocked} placeholder="なまえ" value={draft.name} onChange={e=>updateDraft({name:e.target.value})} className={`flex-1 px-3 py-1.5 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white text-slate-800'}`} />
                         </div>
 
-                        <textarea onScroll={handleEditorScroll} readOnly={isLocked} placeholder="ここにさくぶんをかいてください..." value={draft.content} onChange={e=>updateDraft({content:e.target.value})} className={`flex-1 min-h-[250px] w-full p-5 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none leading-loose text-lg mb-2 shadow-inner transition-all hide-scrollbar lined-textarea ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-blue-50/20 focus:bg-white text-slate-800'}`} />
-                        <div className="text-right text-sm text-slate-500 font-bold pt-2 leading-loose shrink-0">
+                        <textarea onScroll={handleEditorScroll} readOnly={isLocked} placeholder="ここにさくぶんをかいてください..." value={draft.content} onChange={e=>updateDraft({content:e.target.value})} className={`flex-1 min-h-[80px] w-full p-4 border border-slate-200 rounded-xl outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none leading-loose text-lg mb-1 shadow-inner transition-all hide-scrollbar lined-textarea ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-blue-50/20 focus:bg-white text-slate-800'}`} />
+                        <div className="text-right text-sm text-slate-500 font-bold pt-1 leading-normal shrink-0">
                             {(draft.content || '').replace(/\n/g, '').length} <Rb t="文字" r="もじ"/>
                         </div>
                     </div>
 
-                    <div className="p-4 border-t border-slate-100 bg-white grid grid-cols-2 gap-3 shrink-0">
-                        <button onClick={onNew} className="flex items-center justify-center gap-2 pt-4 pb-2.5 border border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100 font-bold text-slate-700 transition-all active:scale-95 leading-loose"><i className="bi bi-plus-lg text-[18px]"></i> <span><Rb t="新規" r="しんき"/></span></button>
-                        <button onClick={openLoadModal} className="flex items-center justify-center gap-2 pt-4 pb-2.5 border border-blue-200 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition-all active:scale-95 leading-loose"><i className="bi bi-folder2-open text-[18px]"></i> <span><Rb t="開" r="ひら"/>く</span></button>
+                    <div className="p-3 border-t border-slate-100 bg-white grid grid-cols-2 gap-2 shrink-0">
+                        <button onClick={onNew} className="flex items-center justify-center gap-2 pt-3 pb-2 border border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100 font-bold text-slate-700 transition-all active:scale-95 leading-normal text-sm"><i className="bi bi-plus-lg text-[16px]"></i> <span><Rb t="新規" r="しんき"/></span></button>
+                        <button onClick={openLoadModal} className="flex items-center justify-center gap-2 pt-3 pb-2 border border-blue-200 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition-all active:scale-95 leading-normal text-sm"><i className="bi bi-folder2-open text-[16px]"></i> <span><Rb t="開" r="ひら"/>く</span></button>
                         
                         {isCompleted ? (
-                            <button onClick={() => setIsDuplicateConfirmOpen(true)} className="col-span-2 flex items-center justify-center gap-2 pt-4 pb-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all active:scale-95 shadow-md hover:shadow-lg leading-loose"><i className="bi bi-files text-[18px]"></i> <span>コピーして<Rb t="新" r="あたら"/>しく<Rb t="書" r="か"/>く</span></button>
+                            <button onClick={() => setIsDuplicateConfirmOpen(true)} className="col-span-2 flex items-center justify-center gap-2 pt-3 pb-2 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all active:scale-95 shadow-md hover:shadow-lg leading-normal text-sm"><i className="bi bi-files text-[16px]"></i> <span>コピーして<Rb t="新" r="あたら"/>しく<Rb t="書" r="か"/>く</span></button>
                         ) : isSubmitted ? (
-                            <button disabled className="col-span-2 flex items-center justify-center gap-2 pt-4 pb-3 bg-slate-300 text-white rounded-xl font-bold leading-loose cursor-not-allowed"><i className="bi bi-send-check text-[18px]"></i> <span><Rb t="提出済" r="ていしゅつずみ"/>（<Rb t="先生" r="せんせい"/>の<Rb t="確認待" r="かくにんま"/>ち）</span></button>
+                            <button disabled className="col-span-2 flex items-center justify-center gap-2 pt-3 pb-2 bg-slate-300 text-white rounded-xl font-bold leading-normal text-sm cursor-not-allowed"><i className="bi bi-send-check text-[16px]"></i> <span><Rb t="提出済" r="ていしゅつずみ"/>（<Rb t="先生" r="せんせい"/>の<Rb t="確認待" r="かくにんま"/>ち）</span></button>
                         ) : (
                             <>
-                                <button onClick={() => onSave(false)} className="flex items-center justify-center gap-2 pt-4 pb-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-all active:scale-95 shadow-md hover:shadow-lg leading-loose"><i className="bi bi-floppy text-[18px]"></i> <span><Rb t="保存" r="ほぞん"/></span></button>
+                                <button onClick={() => onSave(false)} className="flex items-center justify-center gap-2 pt-3 pb-2 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-all active:scale-95 shadow-md hover:shadow-lg leading-normal text-sm"><i className="bi bi-floppy text-[16px]"></i> <span><Rb t="保存" r="ほぞん"/></span></button>
                                 <button onClick={async () => {
                                     const confirmResult = await Swal.fire({
                                         title: '提出しますか？',
@@ -931,7 +931,7 @@
                                         cancelButtonText: 'キャンセル'
                                     });
                                     if (confirmResult.isConfirmed) onSave(true);
-                                }} className="flex items-center justify-center gap-2 pt-4 pb-3 bg-gradient-to-r from-blue-500 to-blue-400 text-white rounded-xl font-bold hover:from-blue-600 hover:to-blue-500 transition-all active:scale-95 shadow-md hover:shadow-lg leading-loose"><i className="bi bi-send text-[18px]"></i> <span><Rb t="提出" r="ていしゅつ"/></span></button>
+                                }} className="flex items-center justify-center gap-2 pt-3 pb-2 bg-gradient-to-r from-blue-500 to-blue-400 text-white rounded-xl font-bold hover:from-blue-600 hover:to-blue-500 transition-all active:scale-95 shadow-md hover:shadow-lg leading-normal text-sm"><i className="bi bi-send text-[16px]"></i> <span><Rb t="提出" r="ていしゅつ"/></span></button>
                             </>
                         )}
                     </div>
@@ -1676,7 +1676,7 @@
           <TeacherSettingsModal isOpen={isTeacherSettingsModalOpen} onClose={() => setIsTeacherSettingsModalOpen(false)} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} />
 
           <nav className="flex-shrink-0 z-40 w-full bg-white border-b border-slate-200 shadow-sm transition-colors duration-300 no-print" style={{ borderBottomColor: mode === 'teacher' ? '#f43f5e' : '#3b82f6', borderBottomWidth: '3px' }}>
-            <div className="px-6 py-2.5 flex items-center justify-between w-full">
+            <div className="px-4 py-1.5 flex items-center justify-between w-full">
               <button onClick={() => handleSwitchMode('student')} className="flex items-center gap-3 hover:opacity-80 transition-all active:scale-95">
                 <div className={`p-2 rounded-xl text-white shadow-sm transition-colors ${mode === 'teacher' ? 'bg-rose-500' : 'bg-blue-500'}`}>
                   <i className="bi bi-pencil-square text-[24px]"></i>
@@ -1714,7 +1714,7 @@
             {mode === 'teacher' && <TeacherView db={db} settings={settings} updateStatus={updateTeacherStatus} updateDraftInDB={updateDraftInDB} onRefresh={handleRefreshTeacher} selectedId={teacherSelectedId} setSelectedId={setTeacherSelectedId} setGlobalPrintDrafts={setGlobalPrintDrafts} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} showMiniToast={showMiniToast} />}
           </main>
 
-          <footer className="flex-shrink-0 w-full bg-white border-t border-slate-200 pt-3 pb-2 text-center text-sm text-slate-500 font-bold no-print z-40 shadow-sm relative">
+          <footer className="flex-shrink-0 w-full bg-white border-t border-slate-200 pt-2 pb-1.5 text-center text-xs text-slate-500 font-bold no-print z-40 shadow-sm relative">
             ©2026 オンライン原稿用紙 Pro <a href="https://note.com/cute_borage86" target="_blank" rel="noopener noreferrer" className="text-inherit no-underline hover:opacity-80 transition-opacity">GIGA山</a>
           </footer>
 
