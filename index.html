@@ -2,9 +2,17 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="縦書き原稿用紙で作文が書ける学習アプリ。先生とのリアルタイム添削・AI添削に対応。">
+  <meta name="theme-color" content="#3b82f6">
   <title>オンライン原稿用紙 Pro</title>
   <link rel="icon" href="favicon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="原稿用紙Pro">
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -47,6 +55,19 @@
                 }
             }
         }
+    }
+  </script>
+
+  <style>
+    /* dvh非対応ブラウザ向けフォールバック + ノッチ端末のセーフエリア対応 */
+    body { height: 100vh; height: 100dvh; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  </style>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
     }
   </script>
 </head>
@@ -95,6 +116,9 @@
       }
       
       .cell-highlighted { background-color: rgba(254, 240, 138, 0.6) !important; }
+
+      /* 画面高が低い端末（スマホ横向き等）ではフッターを隠して学習領域を広げる */
+      @media screen and (max-height: 500px) { .app-footer { display: none !important; } }
       
       @media print {
         .print-page { width: 297mm; height: 210mm; page-break-after: always; position: relative; box-sizing: border-box; padding: 10mm; background: white; }
@@ -398,9 +422,16 @@
             paperRef.current.querySelectorAll('.genko-cell.cell-highlighted').forEach(c => c.classList.remove('cell-highlighted'));
         };
 
-        const handleMouseDown = useCallback((e) => {
+        // タッチ端末（タブレット等）でもドラッグ添削できるようPointer Eventsを使用する。
+        // タッチではpointerdown元の要素にイベントが固定されるため、座標からセルを特定する。
+        const cellFromPoint = (e) => {
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            return el ? el.closest('.genko-cell') : null;
+        };
+
+        const handlePointerDown = useCallback((e) => {
             if (!isTeacher) return;
-            const cell = e.target.closest('.genko-cell');
+            const cell = cellFromPoint(e);
             if (!cell) return;
             const idxStr = cell.getAttribute('data-idx');
             if (!idxStr) return;
@@ -409,9 +440,9 @@
             updateHighlightDOM(idx, idx);
         }, [isTeacher]);
 
-        const handleMouseMove = useCallback((e) => {
+        const handlePointerMove = useCallback((e) => {
             if (!dragRef.current.isDragging) return;
-            const cell = e.target.closest('.genko-cell');
+            const cell = cellFromPoint(e);
             if (!cell) return;
             const idxStr = cell.getAttribute('data-idx');
             if (!idxStr) return;
@@ -422,7 +453,7 @@
             }
         }, []);
 
-        const handleMouseUp = useCallback(() => {
+        const handlePointerUp = useCallback(() => {
             if (!dragRef.current.isDragging) return;
             dragRef.current.isDragging = false;
             const start = dragRef.current.startIdx;
@@ -433,8 +464,16 @@
             clearHighlightDOM();
         }, [onCorrectionAdded]);
 
+        // ブラウザがスクロール操作としてジェスチャを引き取った場合は添削を確定しない
+        const handlePointerCancel = useCallback(() => {
+            if (!dragRef.current.isDragging) return;
+            dragRef.current.isDragging = false;
+            clearHighlightDOM();
+        }, []);
+
+        // pan-x: 横スワイプはページ送りスクロール、縦ドラッグは添削の範囲選択として扱う
         return (
-            <div ref={paperRef} className="flex flex-row-reverse p-10 gap-8 font-genko w-max text-slate-800 select-none bg-[#fffaf0]" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+            <div ref={paperRef} className="flex flex-row-reverse p-10 gap-8 font-genko w-max text-slate-800 select-none bg-[#fffaf0]" style={{ touchAction: isTeacher ? 'pan-x' : 'auto' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerCancel} onPointerLeave={handlePointerUp}>
                 <div className="flex flex-row-reverse border-y border-genkoStrong bg-paper shadow-sm">
                     {Array.from({ length: renderLen }).map((_, i) => (
                         <GenkoLineComponent key={i} line={lines[i] || []} charsPerLine={charsPerLine} cellSize={cellSize} isFirst={i === 0} isLast={i === renderLen - 1} safeCorrections={safeCorrections} isTeacher={isTeacher} onClickCorrection={onClickCorrection} />
@@ -584,6 +623,7 @@
 
     const ConnectModal = ({ isOpen, onClose, onConnect }) => {
         const [pin, setPin] = useState('');
+        useEffect(() => { if (isOpen) setPin(''); }, [isOpen]);
         if (!isOpen) return null;
         return (
             <Modal isOpen={isOpen} onClose={onClose} title={<><i className="bi bi-link-45deg text-blue-500 mr-2"></i><Rb t="先生" r="せんせい"/>と<Rb t="接続" r="せつぞく"/></>} maxWidth="max-w-sm">
@@ -732,27 +772,39 @@
     };
 
     const usePeerCommunication = (updateTeacherDb, setSyncStatus, showToast, showMiniToast, setActiveDraft, mode, clientId, onSyncRequest, onReceiveReturn) => {
-        const [peer, setPeer] = useState(null);
         const [peerId, setPeerId] = useState('');
         const [pinCode, setPinCode] = useState('');
         const [connections, setConnections] = useState([]);
         const [hostConn, setHostConn] = useState(null);
 
+        // 接続確立後もPeerJSのイベントハンドラが常に最新の状態・コールバックを参照できるようにする
+        const cbRef = useRef({});
+        cbRef.current = { updateTeacherDb, setSyncStatus, showToast, onSyncRequest, onReceiveReturn };
+        const peerRef = useRef(null);
+
+        useEffect(() => () => { if (peerRef.current) peerRef.current.destroy(); }, []);
+
+        const destroyPeer = () => {
+            if (peerRef.current) { try { peerRef.current.destroy(); } catch (e) {} peerRef.current = null; }
+            setPeerId(''); setPinCode(''); setConnections([]); setHostConn(null);
+        };
+
         const createRoom = useCallback(() => {
+            destroyPeer();
             const pin = Math.floor(1000 + Math.random() * 9000).toString();
             const id = `genko-pro-${pin}`;
             const newPeer = new Peer(id);
-            
+
             newPeer.on('open', actualId => {
                 setPeerId(actualId);
                 setPinCode(pin);
-                setSyncStatus('connected');
+                cbRef.current.setSyncStatus('connected');
             });
             newPeer.on('error', (err) => {
                 if (err.type === 'unavailable-id') {
-                    showToast('エラーが発生しました。もう一度ルームを作成してください。', 'error');
+                    cbRef.current.showToast('エラーが発生しました。もう一度ルームを作成してください。', 'error');
                     setPeerId(''); setPinCode('');
-                    setSyncStatus('offline');
+                    cbRef.current.setSyncStatus('offline');
                 }
             });
             newPeer.on('connection', conn => {
@@ -766,9 +818,9 @@
                     try {
                         const parsed = typeof data === 'string' ? JSON.parse(data) : data;
                         if (parsed.type === 'submission') {
-                            updateTeacherDb(parsed.data);
+                            cbRef.current.updateTeacherDb(parsed.data);
                         } else if (parsed.type === 'sync_request') {
-                            if (onSyncRequest) onSyncRequest(parsed.clientId, parsed.draftsInfo, conn);
+                            if (cbRef.current.onSyncRequest) cbRef.current.onSyncRequest(parsed.clientId, parsed.draftsInfo, conn);
                         }
                     } catch (e) {}
                 });
@@ -776,45 +828,46 @@
                     setConnections(prev => prev.filter(c => c.peer !== conn.peer));
                 });
             });
-            setPeer(newPeer);
-        }, [updateTeacherDb, setSyncStatus, showToast, onSyncRequest]);
+            peerRef.current = newPeer;
+        }, []);
 
         const connectToHost = useCallback((pin, currentDraftsInfo) => {
+            destroyPeer();
             setSyncStatus('connecting');
             const newPeer = new Peer();
             newPeer.on('open', (id) => {
                 setPeerId(id);
                 const hostId = `genko-pro-${pin}`;
                 const conn = newPeer.connect(hostId, { reliable: true });
-                
+
                 conn.on('open', () => {
                     setHostConn(conn);
-                    setSyncStatus('connected');
+                    cbRef.current.setSyncStatus('connected');
                     conn.send({ type: 'sync_request', clientId: clientId, draftsInfo: currentDraftsInfo });
                 });
                 conn.on('data', data => {
                     try {
                         const parsed = typeof data === 'string' ? JSON.parse(data) : data;
                         if (parsed.type === 'return') {
-                            if (onReceiveReturn) onReceiveReturn(parsed.data);
+                            if (cbRef.current.onReceiveReturn) cbRef.current.onReceiveReturn(parsed.data);
                         }
                     } catch (e) {}
                 });
                 conn.on('close', () => {
                     setHostConn(null);
-                    setSyncStatus('offline');
+                    cbRef.current.setSyncStatus('offline');
                 });
             });
             newPeer.on('error', (err) => {
-                setSyncStatus('offline');
+                cbRef.current.setSyncStatus('offline');
                 if (err.type === 'peer-unavailable') {
-                    showToast('せんせいが みつかりません。PINを かくにん してください。', 'error');
+                    cbRef.current.showToast('せんせいが みつかりません。PINを かくにん してください。', 'error');
                 } else {
-                    showToast('せつぞくエラーが はっせい しました。', 'error');
+                    cbRef.current.showToast('せつぞくエラーが はっせい しました。', 'error');
                 }
             });
-            setPeer(newPeer);
-        }, [setSyncStatus, showToast, clientId, onReceiveReturn]);
+            peerRef.current = newPeer;
+        }, [clientId]);
 
         const sendToHost = useCallback((data) => {
             if (hostConn && hostConn.open) {
@@ -841,7 +894,7 @@
         return { peerId, pinCode, connections, hostConn, createRoom, connectToHost, sendToHost, sendToClient };
     };
 
-    const StudentView = ({ draft, settings, updateDraft, onSave, onNew, showToast, setSyncStatus, sendToHost, studentDb, setLoadModalOpen }) => {
+    const StudentView = ({ draft, settings, updateDraft, onSave, onNew, onPrint, showToast, setSyncStatus, sendToHost, studentDb, setLoadModalOpen }) => {
         const [selectedCor, setSelectedCor] = useState(null);
         const [isDuplicateConfirmOpen, setIsDuplicateConfirmOpen] = useState(false);
         const [scrollRatio, setScrollRatio] = useState(0);
@@ -986,7 +1039,7 @@
 
                 <div className="order-2 lg:order-none w-full lg:flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative min-w-0 ring-1 ring-slate-900/5 h-[50vh] lg:h-full shrink-0 lg:shrink">
                     <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20">
-                        <button onClick={() => window.print()} className="px-2 pt-2 pb-1 sm:px-3 sm:pt-3 sm:pb-1.5 rounded-lg bg-white shadow-sm border border-slate-200 text-xs sm:text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95 flex items-center gap-1 leading-loose"><i className="bi bi-printer text-[14px] sm:text-[15px] -mt-1"></i><span className="hidden sm:inline"><Rb t="印刷" r="いんさつ"/></span></button>
+                        <button onClick={onPrint} className="px-2 pt-2 pb-1 sm:px-3 sm:pt-3 sm:pb-1.5 rounded-lg bg-white shadow-sm border border-slate-200 text-xs sm:text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95 flex items-center gap-1 leading-loose"><i className="bi bi-printer text-[14px] sm:text-[15px] -mt-1"></i><span className="hidden sm:inline"><Rb t="印刷" r="いんさつ"/></span></button>
                     </div>
                     <div className="flex-1 relative min-h-0 bg-slate-100/30 rounded-2xl">
                         <ScalableWrapper key={`${draft?.id || 'new'}-${settings.charsPerLine}-${settings.kinsokuMode}`} externalScrollRatio={scrollRatio}>
@@ -1126,6 +1179,8 @@
         };
 
         const handleCorrectionAdded = (start, end) => {
+            // 既存の添削セルを単にタップした場合はコメント閲覧（削除）モーダル側に任せる
+            if (start === end && adjustedCorrections.some(c => start >= c.start && start < c.end)) return;
             setCorrectionModal({ isOpen: true, text: '', start, end });
         };
 
@@ -1140,7 +1195,7 @@
             const originalText = currentContent.substring(displayStart, displayEnd);
             currentItems.push({ id: crypto.randomUUID(), start: displayStart, end: displayEnd, comment: correctionModal.text, originalText, status: 'active' });
             
-            const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedTimestamp: Date.now() };
+            const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedAt: new Date().toLocaleString('ja-JP'), updatedTimestamp: Date.now() };
             
             updateDraftInDB(updatedDraft);
             setCorrectionModal({ isOpen: false, text: '', start:null, end:null });
@@ -1158,7 +1213,7 @@
             let currentItems = getAdjustedCorrections(parsedCorrections.baseText, currentContent, parsedCorrections.items);
             const newItems = currentItems.filter(c => c.id !== deleteConfirmInfo.id);
             
-            const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: newItems }), updatedTimestamp: Date.now() };
+            const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: newItems }), updatedAt: new Date().toLocaleString('ja-JP'), updatedTimestamp: Date.now() };
             
             updateDraftInDB(updatedDraft);
             setDeleteConfirmInfo(null);
@@ -1184,7 +1239,7 @@
                     if (idx !== -1) { currentItems.push({ id: crypto.randomUUID(), start: idx, end: idx + aiItem.quote.length, comment: '【AI】' + aiItem.comment, originalText: aiItem.quote, status: 'active' }); addedCount++; }
                 });
                 
-                const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedTimestamp: Date.now() };
+                const updatedDraft = { ...selectedDraft, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedAt: new Date().toLocaleString('ja-JP'), updatedTimestamp: Date.now() };
                 
                 updateDraftInDB(updatedDraft);
                 showToast(`${addedCount}件のAI提案を追加しました`, 'success');
@@ -1223,7 +1278,7 @@
                                 const idx = currentContent.indexOf(aiItem.quote);
                                 if (idx !== -1) { currentItems.push({ id: crypto.randomUUID(), start: idx, end: idx + aiItem.quote.length, comment: '【AI】' + aiItem.comment, originalText: aiItem.quote, status: 'active' }); }
                             });
-                            const updatedDraft = { ...d, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedTimestamp: Date.now() };
+                            const updatedDraft = { ...d, correction: JSON.stringify({ baseText: currentContent, items: currentItems }), updatedAt: new Date().toLocaleString('ja-JP'), updatedTimestamp: Date.now() };
                             
                             updateDraftInDB(updatedDraft);
                             if (updatedDraft.peerId) sendToClient(updatedDraft.peerId, { type: 'return', data: updatedDraft });
@@ -1253,7 +1308,7 @@
             Array.from(checkedIds).forEach(id => {
                 const d = drafts.find(x => x.id === id);
                 if (d) {
-                    const newD = { ...d, status: 'completed', updatedTimestamp: Date.now() };
+                    const newD = { ...d, status: 'completed', updatedAt: new Date().toLocaleString('ja-JP'), updatedTimestamp: Date.now() };
                     updateDraftInDB(newD);
                     if (newD.peerId) sendToClient(newD.peerId, { type: 'return', data: newD });
                 }
@@ -1591,7 +1646,19 @@
       useEffect(() => { localStorage.setItem(STUDENT_DB_KEY, JSON.stringify(studentDb)); }, [studentDb]);
       useEffect(() => { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }, [settings]);
       useEffect(() => { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(activeDraft)); }, [activeDraft]);
-      useEffect(() => { if (mode === 'student') setGlobalPrintDrafts([activeDraft]); }, [mode, activeDraft]);
+
+      // 印刷用DOMは毎回描画するとキー入力のたびに全ページ再構築されて重いため、印刷直前にのみ構築する
+      const modeRef = useRef(mode); modeRef.current = mode;
+      const activeDraftRef = useRef(activeDraft); activeDraftRef.current = activeDraft;
+      useEffect(() => {
+          const handleBeforePrint = () => {
+              if (modeRef.current === 'student') {
+                  ReactDOM.flushSync(() => setGlobalPrintDrafts([activeDraftRef.current]));
+              }
+          };
+          window.addEventListener('beforeprint', handleBeforePrint);
+          return () => window.removeEventListener('beforeprint', handleBeforePrint);
+      }, []);
 
       useEffect(() => {
           if (syncStatus === 'saving') {
@@ -1654,7 +1721,7 @@
           connectToHost(pin, draftsInfo);
       };
 
-      const unreadCount = useMemo(() => returnedDrafts.filter(d => readReceipts[d.id] !== d.updatedAt).length, [returnedDrafts, readReceipts]);
+      const unreadCount = useMemo(() => returnedDrafts.filter(d => readReceipts[d.id] !== (d.updatedTimestamp || d.updatedAt)).length, [returnedDrafts, readReceipts]);
 
       const handleSwitchMode = async (newMode) => {
         if (newMode === 'teacher') {
@@ -1682,23 +1749,28 @@
       const handleSaveDraft = (isSubmit = false, isBackground = false, specificDraft = null) => {
         const targetDraft = specificDraft || activeDraft;
         const now = new Date();
-        const draftToSend = { 
-            ...targetDraft, 
-            status: isSubmit ? 'submitted' : targetDraft.status, 
+        const draftToSend = {
+            ...targetDraft,
+            status: isSubmit ? 'submitted' : targetDraft.status,
             updatedAt: now.toLocaleString('ja-JP'),
             updatedTimestamp: now.getTime(),
-            clientId: clientId 
+            clientId: clientId
         };
-        
-        updateStudentDb(draftToSend);
-        if (!specificDraft) setActiveDraft(draftToSend);
 
         const p2pSent = sendToHost({ type: 'submission', data: draftToSend });
 
+        // 未接続のまま提出すると、送信されていないのに編集ロックされてしまうため保存前に中断する
+        if (isSubmit && !p2pSent) {
+            showToast('せんせいと せつぞく されていないため ていしゅつ できません', 'error');
+            return;
+        }
+
+        updateStudentDb(draftToSend);
+        if (!specificDraft || specificDraft.id === activeDraft.id) setActiveDraft(draftToSend);
+
         if (!isBackground) {
             if (isSubmit) {
-                if (p2pSent) showToast('せんせいに ていしゅつ しました！', 'success');
-                else showToast('せんせいと せつぞく されていないため ていしゅつ できません', 'error');
+                showToast('せんせいに ていしゅつ しました！', 'success');
             } else {
                 showToast(p2pSent ? 'せんせいと どうきし、たんまつにも ほぞん しました' : 'たんまつに ほぞん しました', 'success');
             }
@@ -1707,7 +1779,7 @@
 
       const updateTeacherStatus = (id, newStatus) => {
         const targetDraft = db.find(d => d.id === id); if (!targetDraft) return;
-        const dataToSave = { ...targetDraft, status: newStatus, updatedTimestamp: Date.now() };
+        const dataToSave = { ...targetDraft, status: newStatus, updatedAt: new Date().toLocaleString('ja-JP'), updatedTimestamp: Date.now() };
         updateDraftInDB(dataToSave);
         showMiniToast(`ステータスを「${newStatus === 'completed' ? '完了' : '再提出'}」にしました`);
         if (dataToSave.peerId) sendToClient(dataToSave.peerId, { type: 'return', data: dataToSave });
@@ -1723,6 +1795,11 @@
         setIsNewConfirmOpen(false);
       };
 
+      const handleStudentPrint = () => {
+          setGlobalPrintDrafts([activeDraft]);
+          setTimeout(() => window.print(), 300);
+      };
+
       const handleSettingsClick = () => {
           if (mode === 'teacher') setIsTeacherSettingsModalOpen(true);
           else setSettingsModalOpen(true);
@@ -1736,6 +1813,9 @@
           reader.onload = (event) => {
               try {
                   const data = JSON.parse(event.target.result);
+                  if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.content !== 'string') {
+                      throw new Error('invalid draft file');
+                  }
                   const newDraft = { ...data, id: data.id || crypto.randomUUID() };
                   updateStudentDb(newDraft);
                   setActiveDraft(newDraft);
@@ -1762,17 +1842,22 @@
 
       const SyncBadge = () => {
           if (mode === 'teacher') return null;
-          
+
+          const isConnected = !!hostConn;
           let icon = "bi-cloud-slash";
           let text = "オフライン";
           let colorClass = "text-slate-500 bg-slate-100 border-slate-200";
 
           if (syncStatus === 'connecting') {
               icon = "bi-arrow-repeat animate-spin"; text = <><Rb t="接続中" r="せつぞくちゅう"/>...</>; colorClass = "text-blue-600 bg-blue-50 border-blue-200";
-          } else if (syncStatus === 'connected' || syncStatus === 'saved') {
-              icon = "bi-cloud-check-fill"; text = <><Rb t="先生" r="せんせい"/>と<Rb t="同期済" r="どうきずみ"/></>; colorClass = "text-emerald-600 bg-emerald-50 border-emerald-200 shadow-sm";
           } else if (syncStatus === 'saving') {
-              icon = "bi-cloud-arrow-up-fill animate-pulse"; text = <><Rb t="保存" r="ほぞん"/>・<Rb t="同期中" r="どうきちゅう"/>...</>; colorClass = "text-blue-600 bg-blue-50 border-blue-200";
+              icon = isConnected ? "bi-cloud-arrow-up-fill animate-pulse" : "bi-hdd-fill animate-pulse";
+              text = isConnected ? <><Rb t="保存" r="ほぞん"/>・<Rb t="同期中" r="どうきちゅう"/>...</> : <><Rb t="保存中" r="ほぞんちゅう"/>...</>;
+              colorClass = "text-blue-600 bg-blue-50 border-blue-200";
+          } else if (isConnected) {
+              icon = "bi-cloud-check-fill"; text = <><Rb t="先生" r="せんせい"/>と<Rb t="同期済" r="どうきずみ"/></>; colorClass = "text-emerald-600 bg-emerald-50 border-emerald-200 shadow-sm";
+          } else if (syncStatus === 'saved') {
+              icon = "bi-hdd-fill"; text = <><Rb t="端末" r="たんまつ"/>に<Rb t="保存済" r="ほぞんずみ"/></>; colorClass = "text-slate-600 bg-slate-100 border-slate-200";
           }
 
           return (
@@ -1784,7 +1869,7 @@
       };
 
       return (
-        <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
+        <div className="h-full flex flex-col bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
           <style>{GLOBAL_STYLES}</style>
           <LoadingOverlay isVisible={loading.isVisible} text={loading.text} />
           <ToastMessage isVisible={toast.isVisible} message={toast.message} type={toast.type} onClose={() => setToast(prev => ({...prev, isVisible: false}))} />
@@ -1835,11 +1920,11 @@
           </nav>
 
           <main className="flex-1 overflow-hidden flex flex-col no-print relative">
-            {mode === 'student' && <StudentView draft={activeDraft} settings={settings} updateDraft={setActiveDraft} onSave={handleSaveDraft} onNew={handleNewDraft} setSyncStatus={setSyncStatus} setLoadModalOpen={setLoadModalOpen} showToast={showToast} showMiniToast={showMiniToast} showLoading={showLoading} hideLoading={hideLoading} sendToHost={sendToHost} studentDb={studentDb} />}
+            {mode === 'student' && <StudentView draft={activeDraft} settings={settings} updateDraft={setActiveDraft} onSave={handleSaveDraft} onNew={handleNewDraft} onPrint={handleStudentPrint} setSyncStatus={setSyncStatus} setLoadModalOpen={setLoadModalOpen} showToast={showToast} showMiniToast={showMiniToast} showLoading={showLoading} hideLoading={hideLoading} sendToHost={sendToHost} studentDb={studentDb} />}
             {mode === 'teacher' && <TeacherView db={db} setDb={setDb} settings={settings} updateStatus={updateTeacherStatus} updateDraftInDB={updateDraftInDB} selectedId={teacherSelectedId} setSelectedId={setTeacherSelectedId} setGlobalPrintDrafts={setGlobalPrintDrafts} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} showMiniToast={showMiniToast} peerId={peerId} pinCode={pinCode} connections={connections} createRoom={createRoom} sendToClient={sendToClient} />}
           </main>
 
-          <footer className="flex-shrink-0 w-full bg-white border-t border-slate-200 pt-1.5 pb-1 sm:pt-2 sm:pb-1.5 text-center text-xs text-slate-500 font-bold no-print z-40 shadow-sm relative">
+          <footer className="app-footer flex-shrink-0 w-full bg-white border-t border-slate-200 pt-1.5 pb-1 sm:pt-2 sm:pb-1.5 text-center text-xs text-slate-500 font-bold no-print z-40 shadow-sm relative">
             ©2026 オンライン原稿用紙 Pro <a href="https://note.com/cute_borage86" target="_blank" rel="noopener noreferrer" className="text-inherit no-underline hover:opacity-80 transition-opacity">GIGA山</a>
           </footer>
 
@@ -1909,7 +1994,7 @@
               {returnedDrafts.length === 0 ? <div className="text-center text-slate-400 py-10 pt-12 font-bold leading-loose">まだ<Rb t="返却" r="へんきゃく"/>されたものはありません</div> : (
                 <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2 hide-scrollbar">
                   {returnedDrafts.map(d => {
-                      const isUnread = readReceipts[d.id] !== d.updatedAt;
+                      const isUnread = readReceipts[d.id] !== (d.updatedTimestamp || d.updatedAt);
                       return (
                           <div key={d.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isUnread ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
                             <div className="min-w-0">
@@ -1922,7 +2007,7 @@
                               <div className="font-bold text-slate-800 text-lg pt-2 truncate mt-1">{d.title || <Rb t="無題" r="むだい"/>}</div>
                             </div>
                             <button onClick={() => {
-                                const newReceipts = { ...readReceipts, [d.id]: d.updatedAt };
+                                const newReceipts = { ...readReceipts, [d.id]: (d.updatedTimestamp || d.updatedAt) };
                                 setReadReceipts(newReceipts);
                                 localStorage.setItem(READ_RECEIPTS_KEY, JSON.stringify(newReceipts));
                                 setActiveDraft(d);
