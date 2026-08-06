@@ -3,6 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # 失敗時にコミットなしで再デプロイできるよう手動実行を許可する
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,10 +16,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # ビルド（成果物のアップロード）とデプロイをジョブとして分ける。
+  # 1つのジョブにまとめていると「Re-run failed jobs」のたびに
+  # github-pages という同名の成果物が同じ実行に追加され、
+  # actions/deploy-pages が
+  #   Multiple artifacts named "github-pages" were unexpectedly found
+  # で必ず失敗するようになる（成果物は上書きされないため再実行するほど増える）。
+  # 分割しておけば再実行の対象は deploy だけになり、成果物は1つのまま保たれる。
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,11 +34,19 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
         with:
           # Pages側の反映待ちは通常20秒ほどだが、混雑時は数十分キューに残ることがある。
-          # 既定の10分では成果物のアップロードに成功していてもタイムアウトで失敗扱いになり、
-          # 手動での再実行が必要になるため、待ち時間を30分まで延ばす。
+          # 既定の10分では成果物のアップロードに成功していてもタイムアウトで失敗扱いになるため、
+          # 待ち時間を30分まで延ばす。
           timeout: 1800000
