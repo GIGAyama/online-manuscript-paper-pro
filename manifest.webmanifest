@@ -1,15 +1,21 @@
 {
-  "id": "./",
   "name": "オンライン原稿用紙 Pro",
   "short_name": "原稿用紙Pro",
   "description": "縦書き原稿用紙で作文が書ける学習アプリ。先生とのリアルタイム添削・AI添削に対応。",
   "lang": "ja",
-  "start_url": "./",
-  "scope": "./",
+  "dir": "ltr",
+
+  "id": "/online-manuscript-paper-pro/",
+  "start_url": "/online-manuscript-paper-pro/?source=pwa",
+  "scope": "/online-manuscript-paper-pro/",
+
   "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui"],
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
   "orientation": "any",
   "background_color": "#f8fafc",
   "theme_color": "#3b82f6",
+  "categories": ["education", "productivity"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
