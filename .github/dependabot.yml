@@ -1,0 +1,14 @@
+version: 2
+
+updates:
+  # このアプリ本体は npm パッケージを持たない単一 HTML 構成だが、
+  # GitHub Pages への配信は Actions に依存している。
+  # actions/checkout などが古いまま放置されると、ある日突然
+  # デプロイだけが動かなくなる（実行環境の廃止）ため、月1で更新を見る。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"

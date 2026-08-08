@@ -1,0 +1,31 @@
+{
+  "$comment": "GIGA Standard v4 品質ゲートの設定。scripts/check-project.mjs が読む。",
+  "appName": "オンライン原稿用紙 Pro",
+  "repoName": "online-manuscript-paper-pro",
+  "type": "A",
+
+  "entry": "index.html",
+  "manifest": "manifest.webmanifest",
+  "serviceWorker": "sw.js",
+  "offlinePage": "offline.html",
+  "iconDir": "icons",
+
+  "limits": {
+    "maxFileLines": 5000,
+    "maxFileBytes": 409600,
+    "maxImageBytes": 153600,
+    "maxIcon512Bytes": 61440,
+    "maxFaviconBytes": 30720
+  },
+
+  "securityExceptions": [
+    {
+      "rule": "csp-present",
+      "reason": "index.html がブラウザ上で JSX を Babel 変換しているため、実効性のある CSP を書けない（script-src に unsafe-eval と unsafe-inline が必須になり制限として機能しない）。ビルド工程の導入（Vite化）と同時に対応する。AUDIT.md §H2 を参照。"
+    },
+    {
+      "rule": "initial-js-budget",
+      "reason": "同上。@babel/standalone だけで約2.9MBあり、300KBの目安を満たせない。AUDIT.md §H1 を参照。"
+    }
+  ]
+}

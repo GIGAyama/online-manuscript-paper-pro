@@ -23,7 +23,23 @@ jobs:
   #   Multiple artifacts named "github-pages" were unexpectedly found
   # で必ず失敗するようになる（成果物は上書きされないため再実行するほど増える）。
   # 分割しておけば再実行の対象は deploy だけになり、成果物は1つのまま保たれる。
+  # 品質ゲート。一度直した項目（manifest の id、sw.js のキャッシュ削除範囲、
+  # 100vh の単独使用など）を次の改修で静かに壊し戻していないかを機械的に見張る。
+  # ここが落ちたら公開しない。
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: GIGA Standard v4 品質ゲート
+        run: node scripts/check-project.mjs
+
   build:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

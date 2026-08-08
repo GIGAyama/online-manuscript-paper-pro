@@ -2,12 +2,41 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <!-- maximum-scale / user-scalable=no は付けない。
+       このアプリは「文章を書いて読み返す」道具であり、小さい字を指で広げて
+       確かめる操作が学習そのものに含まれる。誤ズーム防止と引き換えに
+       拡大を禁じると、視力の弱い児童と、細かい添削を読む先生が困る。 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- インストールの合図を「いちばん先に」受け取る。
+       Chrome は条件が揃うと即座に beforeinstallprompt を出す。
+       この下にある Tailwind / React / Babel の読み込みより後ろに置くと、
+       校内Wi-Fiが混んでいる時にこの合図を取りこぼし、
+       画面に「インストール」ボタンが出なくなる。 -->
+  <script>
+    window.__deferredInstallPrompt = null;
+    addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__deferredInstallPrompt = e;
+      dispatchEvent(new Event('pwa-installable'));
+    });
+    addEventListener('appinstalled', function () {
+      window.__deferredInstallPrompt = null;
+      dispatchEvent(new Event('pwa-installed'));
+    });
+  </script>
+
   <meta name="description" content="縦書き原稿用紙で作文が書ける学習アプリ。先生とのリアルタイム添削・AI添削に対応。">
   <meta name="theme-color" content="#3b82f6">
+  <!-- 児童が使う画面なので配色は固定する。端末のダークモード設定で
+       原稿用紙の色が変わると、印刷結果と見え方がずれて混乱する。 -->
+  <meta name="color-scheme" content="light">
   <title>オンライン原稿用紙 Pro</title>
   <link rel="icon" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
   <link rel="manifest" href="manifest.webmanifest">
+  <!-- iOS は maskable アイコンに対応しないため専用の1枚を渡す -->
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -59,19 +88,162 @@
   </script>
 
   <style>
-    /* dvh非対応ブラウザ向けフォールバック + ノッチ端末のセーフエリア対応 */
-    body { height: 100vh; height: 100dvh; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+    /* ここは「React が動く前から効いていないと困る」土台だけを置く。
+       画面の高さ・セーフエリア・指の当たり判定は、Babel の変換が終わるのを
+       待っていると初回表示が一瞬崩れて見えるため、head で先に確定させる。
+       見た目の装飾（罫線・アニメーション）は GLOBAL_STYLES 側に残す。 */
+
+    :root {
+      /* ノッチ・ホームバー・丸角の逃げ幅 */
+      --safe-t: env(safe-area-inset-top, 0px);
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --safe-l: env(safe-area-inset-left, 0px);
+      --safe-r: env(safe-area-inset-right, 0px);
+
+      /* 画面幅に応じて滑らかに変わる文字サイズ。
+         メディアクエリを何段も書かずに、Chromebook(1366)・iPad・
+         スマホ(375)・電子黒板のどれでも収まる大きさにする。 */
+      --fs-body:  clamp(15px, 1.6vw + 10px, 18px);
+      --fs-lead:  clamp(18px, 2.2vw + 12px, 24px);
+      --fs-title: clamp(22px, 3.2vw + 14px, 40px);
+    }
+
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    /* 高さの指定は3行とも必要。上から順に「古い端末向け」「今の端末向け」
+       「ソフトキーボードが出ている間」。後ろの行が使えるブラウザでは後ろが勝つ。
+       クラスではなく body 要素側で持つのは、Tailwind の h-[100dvh] を外して
+       ここへ一本化したため（2か所で高さを決めると片方だけ直して事故る）。 */
+    body.app-shell {
+      height: 100vh;
+      height: 100dvh;
+      height: var(--vvh, 100dvh);
+      padding-top: var(--safe-t);
+      padding-bottom: var(--safe-b);
+      padding-left: var(--safe-l);
+      padding-right: var(--safe-r);
+      font-size: var(--fs-body);
+    }
+
+    /* 指の当たり判定。ダブルタップズームの300ms待ちを消すと、
+       低学年の「押したのに反応しない」がなくなる。 */
+    * { -webkit-tap-highlight-color: transparent; }
+    button, a, [role="button"], summary, label, select,
+    input[type="button"], input[type="submit"], input[type="checkbox"], input[type="radio"] {
+      touch-action: manipulation;
+    }
+
+    /* 指で操作する端末に限って、押せる範囲を 44px 以上にする。
+       マウス操作の先生用PCまで広げると、名簿や添削ツールバーの
+       密なボタン列が間延びしてしまうので pointer: coarse で切り分ける。 */
+    @media (pointer: coarse) {
+      button, [role="button"], a[href] {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      /* 文章の中のリンク（フッターの作者名など）は行の中に収まっていてよい */
+      footer a[href], p a[href], .inline-link {
+        min-height: 0;
+        min-width: 0;
+      }
+    }
+
+    /* 名簿や作文一覧を端まで送ったときに、画面全体が引っぱられて
+       ページごと更新されてしまうのを防ぐ */
+    [class*="overflow-auto"], [class*="overflow-y-auto"], [class*="overflow-x-auto"] {
+      overscroll-behavior: contain;
+    }
+
+    /* キーボードだけで操作している人に、いまどこにいるかを必ず見せる */
+    :focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+
+    /* 背景色が無効化されるハイコントラストモードでも「押せる」と分かるように */
+    @media (forced-colors: active) {
+      button, [role="button"] { border: 2px solid ButtonText; }
+    }
+
+    /* 動きに酔う・光の点滅が苦手な児童のために、端末側の設定を尊重する */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    /* インストール案内（React が起動する前でも崩れないよう最小限だけ持つ） */
+    #install-hint[hidden] { display: none !important; }
   </style>
 
   <script>
+    // ソフトキーボードが出ると window.innerHeight は変わらないのに
+    // 実際に見えている領域だけが縮む。原稿用紙は画面いっぱいに広げているので、
+    // これを放置すると入力中のマスがキーボードの下に隠れて見えなくなる。
+    // 見えている高さを --vvh に流し込み、body の高さをそれに合わせる。
+    (function () {
+      var vv = window.visualViewport;
+      if (!vv) return;
+      var root = document.documentElement;
+      var sync = function () {
+        // ピンチで拡大している間も visualViewport は小さくなる。
+        // それを高さとして採用すると「拡大するほど画面が縮む」ため、
+        // 縮めるのはキーボードが出ているとき（等倍のとき）だけにする。
+        if (vv.scale > 1.01) root.style.removeProperty('--vvh');
+        else root.style.setProperty('--vvh', Math.round(vv.height) + 'px');
+      };
+      vv.addEventListener('resize', sync);
+      vv.addEventListener('scroll', sync);
+      sync();
+    })();
+  </script>
+
+  <script>
+    // 新しい版が裏で用意できたら、児童にも分かる言葉で知らせてから入れ替える。
+    // 黙って入れ替えると、書きかけの作文を抱えたまま画面が変わって驚くので、
+    // 「いつ更新するか」は本人に押してもらう。
+    // そのために sw.js の install では skipWaiting() を呼ばず、待機させている。
+    window.__pwaApplyUpdate = function () {};
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          const announce = (waiting) => {
+            if (!waiting) return;
+            window.__pwaApplyUpdate = function () {
+              // controllerchange を待ってから再読み込みする。
+              // 先に reload すると古い方の Service Worker が応答し、
+              // 「更新したのに変わらない」が起きる。
+              navigator.serviceWorker.addEventListener('controllerchange', function once() {
+                navigator.serviceWorker.removeEventListener('controllerchange', once);
+                location.reload();
+              });
+              waiting.postMessage({ type: 'SKIP_WAITING' });
+            };
+            window.dispatchEvent(new Event('pwa-update-ready'));
+          };
+
+          // ページを開いた時点ですでに新しい版が待機していることがある
+          if (reg.waiting && navigator.serviceWorker.controller) announce(reg.waiting);
+
+          reg.addEventListener('updatefound', () => {
+            const sw = reg.installing;
+            if (!sw) return;
+            sw.addEventListener('statechange', () => {
+              // controller がある＝初回インストールではなく「更新」のときだけ知らせる
+              if (sw.state === 'installed' && navigator.serviceWorker.controller) announce(sw);
+            });
+          });
+        }).catch(() => {});
       });
     }
   </script>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans h-[100dvh] flex flex-col overflow-hidden selection:bg-blue-200 selection:text-blue-900">
+<!-- 高さは head の body.app-shell 側で決める。ここに h-[100dvh] を残すと
+     ソフトキーボード対応(--vvh)がクラス側に負けて効かなくなる。 -->
+<body class="app-shell bg-slate-50 text-slate-800 font-sans flex flex-col overflow-hidden selection:bg-blue-200 selection:text-blue-900">
   <div id="root" class="h-full flex flex-col"></div>
 
   <script type="text/babel">
@@ -211,6 +383,108 @@
         <span className="absolute bottom-full left-1/2 -translate-x-1/2 text-[0.55em] opacity-90 pointer-events-none font-bold tracking-normal leading-none whitespace-nowrap mb-[0.15em]" style={{ letterSpacing: 'normal' }}>{r}</span>
       </span>
     );
+
+    // すでに「アプリとして」開いているかどうか。
+    // ホーム画面から起動している人に「インストール」を勧めても意味がないので隠す。
+    const isStandaloneApp = () =>
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+
+    // インストール導線。head で先に捕まえておいた beforeinstallprompt を使う。
+    // iOS Safari はこの合図を出さないため、その場合は手順を案内する。
+    const InstallButton = () => {
+        const [canInstall, setCanInstall] = useState(!!window.__deferredInstallPrompt);
+        const [installed, setInstalled] = useState(isStandaloneApp());
+        const [showIosHelp, setShowIosHelp] = useState(false);
+
+        useEffect(() => {
+            const onReady = () => setCanInstall(true);
+            const onDone = () => { setCanInstall(false); setInstalled(true); };
+            window.addEventListener('pwa-installable', onReady);
+            window.addEventListener('pwa-installed', onDone);
+            return () => {
+                window.removeEventListener('pwa-installable', onReady);
+                window.removeEventListener('pwa-installed', onDone);
+            };
+        }, []);
+
+        // iOS は beforeinstallprompt が来ないので、Safari かつ未インストールなら案内を出す
+        const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+        if (installed) return null;
+        if (!canInstall && !isIos) return null;
+
+        const handleClick = async () => {
+            if (isIos && !window.__deferredInstallPrompt) { setShowIosHelp(true); return; }
+            const prompt = window.__deferredInstallPrompt;
+            if (!prompt) return;
+            window.__deferredInstallPrompt = null;
+            setCanInstall(false);
+            try { await prompt.prompt(); } catch (e) { /* ユーザーが閉じただけ。何もしない */ }
+        };
+
+        return (
+            <>
+              <button onClick={handleClick}
+                className="flex items-center gap-1 sm:gap-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all active:scale-95"
+                title="このアプリをホーム画面に追加する" aria-label="このアプリをホーム画面に追加する">
+                <i className="bi bi-box-arrow-down text-base sm:text-lg -mt-0.5"></i>
+                <span className="hidden sm:inline"><Rb t="追加" r="ついか"/></span>
+              </button>
+
+              {showIosHelp && (
+                <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4"
+                     role="dialog" aria-modal="true" aria-labelledby="ios-help-title"
+                     onClick={() => setShowIosHelp(false)}>
+                  <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 animate-modal"
+                       onClick={e => e.stopPropagation()}>
+                    <h2 id="ios-help-title" className="font-bold text-lg mb-3 text-slate-800">
+                      ホーム<Rb t="画面" r="がめん"/>に<Rb t="追加" r="ついか"/>するには
+                    </h2>
+                    <ol className="text-sm text-slate-600 leading-relaxed list-decimal pl-5 space-y-1">
+                      <li>がめんの下（または上）にある <i className="bi bi-box-arrow-up"></i>（共有）を おす</li>
+                      <li>「ホーム画面に追加」を えらぶ</li>
+                      <li>右上の「追加」を おす</li>
+                    </ol>
+                    <button onClick={() => setShowIosHelp(false)}
+                      className="mt-4 w-full py-2 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 transition-colors">
+                      とじる
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+        );
+    };
+
+    // 新しい版が用意できたことを知らせる帯。
+    // 「あとで」を選べるようにしてあるのは、作文の途中で強制的に
+    // 再読み込みされると書きかけが飛ぶように見えて不安になるため。
+    const UpdateBanner = () => {
+        const [ready, setReady] = useState(false);
+        useEffect(() => {
+            const onReady = () => setReady(true);
+            window.addEventListener('pwa-update-ready', onReady);
+            return () => window.removeEventListener('pwa-update-ready', onReady);
+        }, []);
+        if (!ready) return null;
+        return (
+            <div role="status" aria-live="polite"
+                 className="fixed left-1/2 -translate-x-1/2 z-[80] bottom-[calc(1rem+var(--safe-b))] w-[min(92vw,26rem)] bg-slate-800 text-white rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3 no-print">
+              <i className="bi bi-arrow-clockwise text-xl flex-shrink-0"></i>
+              <span className="text-sm font-bold flex-1">あたらしい バージョンが あります</span>
+              <button onClick={() => window.__pwaApplyUpdate()}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-white text-slate-800 text-sm font-bold hover:bg-slate-100 transition-colors">
+                さいしんに する
+              </button>
+              <button onClick={() => setReady(false)} aria-label="あとにする"
+                className="flex-shrink-0 px-2 text-white/70 hover:text-white transition-colors">
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+        );
+    };
 
     const analyzeEssayWithGemini = async (title, grade, content) => {
         const apiKey = localStorage.getItem('gemini_api_key');
@@ -1794,6 +2068,17 @@
       // 印刷用DOMは毎回描画するとキー入力のたびに全ページ再構築されて重いため、印刷直前にのみ構築する
       const modeRef = useRef(mode); modeRef.current = mode;
       const activeDraftRef = useRef(activeDraft); activeDraftRef.current = activeDraft;
+
+      // Chromebook はメモリが足りなくなるとタブを黙って破棄する。
+      // 通常の自動保存は入力のたびに走っているが、破棄の直前に一度だけ呼ばれる
+      // pagehide でもう一度書き切っておき、「戻ったら作文が消えていた」を防ぐ。
+      // beforeunload ではなく pagehide にするのは、iOS Safari が
+      // beforeunload をほぼ発火させないため。
+      useEffect(() => {
+          const flush = () => { persist(AUTOSAVE_KEY, activeDraftRef.current); };
+          window.addEventListener('pagehide', flush);
+          return () => window.removeEventListener('pagehide', flush);
+      }, [persist]);
       useEffect(() => {
           const handleBeforePrint = () => {
               if (modeRef.current === 'student') {
@@ -2029,6 +2314,7 @@
           <TeacherAuthModal isOpen={isTeacherAuthModalOpen} onClose={() => setTeacherAuthModalOpen(false)} onSubmit={handleTeacherAuth} />
           <TeacherSettingsModal isOpen={isTeacherSettingsModalOpen} onClose={() => setIsTeacherSettingsModalOpen(false)} db={db} setDb={setDb} showLoading={showLoading} hideLoading={hideLoading} showToast={showToast} />
           <ConnectModal isOpen={isConnectModalOpen} onClose={() => setIsConnectModalOpen(false)} onConnect={handleConnectWithPin} />
+          <UpdateBanner />
 
           <nav className="flex-shrink-0 z-40 w-full bg-white border-b border-slate-200 shadow-sm transition-colors duration-300 no-print" style={{ borderBottomColor: mode === 'teacher' ? '#f43f5e' : '#3b82f6', borderBottomWidth: '3px' }}>
             <div className="px-3 py-1.5 sm:px-4 sm:py-2 flex flex-wrap items-center justify-between w-full gap-y-1">
@@ -2046,6 +2332,7 @@
 
               <div className="flex items-center gap-2 sm:gap-3 ml-auto">
                   <SyncBadge />
+                  <InstallButton />
                   {mode === 'student' && syncStatus === 'offline' && (
                       <button onClick={() => setIsConnectModalOpen(true)} className="flex items-center gap-1 sm:gap-1.5 text-white bg-blue-500 hover:bg-blue-600 hover:shadow-lg px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95">
                           <i className="bi bi-link-45deg text-base sm:text-lg -mt-0.5"></i> <Rb t="先生" r="せんせい"/>と<Rb t="接続" r="せつぞく"/>
