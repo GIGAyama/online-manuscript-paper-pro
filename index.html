@@ -2333,7 +2333,13 @@
               <div className="flex items-center gap-2 sm:gap-3 ml-auto">
                   <SyncBadge />
                   <InstallButton />
-                  {mode === 'student' && syncStatus === 'offline' && (
+                  {/* 表示条件は「接続していない」であって「syncStatus が offline」ではない。
+                      以前は syncStatus === 'offline' で出していたため、接続する前に
+                      1文字でも書くと状態が saving → saved に移り、このボタンが消えていた。
+                      先に書き始めてから先生の合図で接続する、という授業では普通の順番で
+                      接続できなくなり、児童は再読み込みするしか手がなかった。
+                      接続を試している最中だけは、二重に開かないよう隠す。 */}
+                  {mode === 'student' && !hostConn && syncStatus !== 'connecting' && (
                       <button onClick={() => setIsConnectModalOpen(true)} className="flex items-center gap-1 sm:gap-1.5 text-white bg-blue-500 hover:bg-blue-600 hover:shadow-lg px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95">
                           <i className="bi bi-link-45deg text-base sm:text-lg -mt-0.5"></i> <Rb t="先生" r="せんせい"/>と<Rb t="接続" r="せつぞく"/>
                       </button>
