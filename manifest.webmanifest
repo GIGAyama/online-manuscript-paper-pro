@@ -5,9 +5,9 @@
   "lang": "ja",
   "dir": "ltr",
 
-  "id": "/online-manuscript-paper-pro/",
-  "start_url": "/online-manuscript-paper-pro/?source=pwa",
-  "scope": "/online-manuscript-paper-pro/",
+  "id": "./",
+  "start_url": "./?source=pwa",
+  "scope": "./",
 
   "display": "standalone",
   "display_override": ["standalone", "fullscreen", "minimal-ui"],
