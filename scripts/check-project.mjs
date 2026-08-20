@@ -132,16 +132,22 @@ check('canvas-dpr', 'Canvas を使う場合は devicePixelRatio 補正がある'
 // ---- E. PWA --------------------------------------------------------------
 const manifest = JSON.parse(read(cfg.manifest));
 
-check('manifest-absolute-id', 'manifest の id/scope/start_url がリポジトリ名の絶対パス', () => {
-  const want = `/${cfg.repoName}/`;
+check('manifest-path', 'manifest の id/scope/start_url が配信場所と合っている', () => {
+  // 正しい値は「どこで配信するか」で変わる。
+  // CNAME があれば独自ドメインの直下に置かれるので "./"。
+  // 旧構成（gigayama.github.io/リポジトリ名/）のようにオリジンを他アプリと
+  // 共有する配置なら、取り違えを避けるためリポジトリ名の絶対パスが要る。
+  //
+  // ⚠️ 独自ドメインでリポジトリ名の絶対パスに戻すと、scope がページの URL を
+  //    含まなくなり、manifest ごと無視されて PWA としてインストールできなくなる。
+  const hasCname = existsSync(join(ROOT, 'CNAME'));
+  const want = hasCname ? './' : `/${cfg.repoName}/`;
   const bad = [];
   for (const key of ['id', 'scope', 'start_url']) {
     const v = manifest[key];
-    // id はマニフェストの置き場所ではなくオリジンを基準に解決される。
-    // './' のままだと同一オリジンの他アプリと同じ識別子になり、取り違え事故が起きる。
     if (typeof v !== 'string' || !v.startsWith(want)) bad.push(`${key}=${v}`);
   }
-  return { ok: bad.length === 0, detail: bad.join(' / ') };
+  return { ok: bad.length === 0, detail: bad.length ? `${bad.join(' / ')}（期待: ${want}）` : `3つとも ${want} から始まる` };
 });
 
 check('manifest-icons', 'アイコン4種（any 192/512・maskable 192/512）が揃っている', () => {
