@@ -235,4 +235,4 @@ node scripts/check-project.mjs
 
 ## 📄 ライセンス / 作者
 
-©2026 オンライン原稿用紙 Pro — [GIGA山](https://note.com/cute_borage86)
+©2026 オンライン原稿用紙 Pro — [GIGA山](https://giga-school.com)

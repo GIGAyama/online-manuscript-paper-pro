@@ -486,4 +486,4 @@ Safari には「インストール」の合図を出すしくみがないため�
 
 ---
 
-©2026 オンライン原稿用紙 Pro — [GIGA山](https://note.com/cute_borage86)
+©2026 オンライン原稿用紙 Pro — [GIGA山](https://giga-school.com)
