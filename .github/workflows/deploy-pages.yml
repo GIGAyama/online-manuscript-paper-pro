@@ -37,6 +37,8 @@ jobs:
           node-version: '20'
       - name: GIGA Standard v4 品質ゲート
         run: node scripts/check-project.mjs
+      - name: SW の版が中身と一致しているか
+        run: node tools/build-sw.mjs --check
 
   # ビルド（成果物のアップロード）とデプロイをジョブとして分ける。
   # 1つのジョブにまとめていると「Re-run failed jobs」のたびに
@@ -76,3 +78,15 @@ jobs:
           # 既定の10分では成果物のアップロードに成功していてもタイムアウトで失敗扱いになるため、
           # 待ち時間を30分まで延ばす。
           timeout: 1800000
+
+  # 正本（GIGAyama.github.io/standards/）との一致。コピーだけ直すと他リポジトリに修正が届かないため。
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: GIGAyama/GIGAyama.github.io
+          path: .standards-src
+      - name: 正本とのずれ検知
+        run: node .standards-src/standards/check-drift.mjs --standards .standards-src/standards

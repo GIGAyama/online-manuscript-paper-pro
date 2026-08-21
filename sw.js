@@ -12,7 +12,8 @@
  *   児童の作文（genko_pro_*）にも、アプリ間で共有する study.records.v1 にも触れない。
  */
 const CACHE_PREFIX = 'genko-pro-';
-const APP_VERSION = 'v6';   // ← リリースごとに必ず上げる
+// APP_VERSION は手で上げない。node tools/build-sw.mjs が先読み対象の中身から自動で決める
+const APP_VERSION = 'v84bc577f'; /* __APP_VERSION__ */
 const CACHE_NAME = CACHE_PREFIX + APP_VERSION;
 
 const APP_SHELL = [
