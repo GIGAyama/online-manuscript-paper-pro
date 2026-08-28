@@ -13,7 +13,7 @@
  */
 const CACHE_PREFIX = 'genko-pro-';
 // APP_VERSION は手で上げない。node tools/build-sw.mjs が先読み対象の中身から自動で決める
-const APP_VERSION = 'v114a2350'; /* __APP_VERSION__ */
+const APP_VERSION = 'vcd359476'; /* __APP_VERSION__ */
 const CACHE_NAME = CACHE_PREFIX + APP_VERSION;
 
 const APP_SHELL = [
@@ -22,6 +22,14 @@ const APP_SHELL = [
   './offline.html',
   './manifest.webmanifest',
   './favicon.png',
+  // 自己ホストにしたライブラリ・アイコン・書体（生成物）。
+  // ⚠️ ここから漏れると「オフラインでは素の HTML が半分だけ動く」になり、
+  //    しかも画面は出るので気づけない。
+  './vendor/libs.js',
+  './vendor/icons.css',
+  './css/app.css',
+  './css/fonts.css',
+  './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/maskable-192.png',
@@ -29,15 +37,16 @@ const APP_SHELL = [
   './icons/apple-touch-icon.png'
 ];
 
-// 実行時キャッシュを許可するCDNホスト（アプリの動作に必要な静的アセットのみ）
-const RUNTIME_CACHE_HOSTS = [
-  'cdn.tailwindcss.com',
-  'cdn.jsdelivr.net',
-  'cdnjs.cloudflare.com',
-  'unpkg.com',
-  'fonts.googleapis.com',
-  'fonts.gstatic.com'
-];
+// 実行時キャッシュを許可する外部ホスト。
+//
+// ⚠️ 2026-08-28、ライブラリ・アイコン・書体をすべて自己ホストにしたので、
+//    ここに並べる CDN は 1 つも要らなくなった。空のままにしておくこと。
+//    書き足すということは、また外から取りはじめたということである。
+//
+//    書体そのもの（fonts/*.woff2）は先読みに入れていない。入れると先読みが
+//    重くなるが、画面が出れば必ず取りにいくので、その 1 回で下の実行時
+//    キャッシュに入る。2 回目からはオフラインでも同じように出る。
+const RUNTIME_CACHE_HOSTS = [];
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {

@@ -1,0 +1,24 @@
+{
+  "name": "online-manuscript-paper-pro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "原稿用紙Pro — 実行コードは 1 バイトも外から取らない",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/vendor/build-vendor.mjs && node tools/build.mjs && node tools/build-sw.mjs",
+    "build:fonts": "node tools/fonts/build-fonts.mjs",
+    "verify": "node tools/vendor/verify-generated.mjs && node tools/check-generated.mjs",
+    "check": "npm run build && npm run verify && node tools/build-sw.mjs --check && node scripts/check-project.mjs"
+  },
+  "devDependencies": {
+    "@babel/core": "7.28.4",
+    "@babel/preset-react": "7.27.1",
+    "bootstrap-icons": "1.11.1",
+    "diff-match-patch": "1.0.5",
+    "peerjs": "1.5.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sweetalert2": "11.26.25",
+    "tailwindcss": "3.4.17"
+  }
+}
