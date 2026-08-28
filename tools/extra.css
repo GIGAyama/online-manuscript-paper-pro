@@ -1,0 +1,91 @@
+/* Tailwind の出力のあとに置く、このアプリだけのスタイル。
+   以前は index.html の <style> に直接書いてあった。生成物は css/app.css。 */
+/* ここは「React が動く前から効いていないと困る」土台だけを置く。
+   画面の高さ・セーフエリア・指の当たり判定は、Babel の変換が終わるのを
+   待っていると初回表示が一瞬崩れて見えるため、head で先に確定させる。
+   見た目の装飾（罫線・アニメーション）は GLOBAL_STYLES 側に残す。 */
+
+:root {
+  /* ノッチ・ホームバー・丸角の逃げ幅 */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+
+  /* 画面幅に応じて滑らかに変わる文字サイズ。
+     メディアクエリを何段も書かずに、Chromebook(1366)・iPad・
+     スマホ(375)・電子黒板のどれでも収まる大きさにする。 */
+  --fs-body:  clamp(15px, 1.6vw + 10px, 18px);
+  --fs-lead:  clamp(18px, 2.2vw + 12px, 24px);
+  --fs-title: clamp(22px, 3.2vw + 14px, 40px);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 高さの指定は3行とも必要。上から順に「古い端末向け」「今の端末向け」
+   「ソフトキーボードが出ている間」。後ろの行が使えるブラウザでは後ろが勝つ。
+   クラスではなく body 要素側で持つのは、Tailwind の h-[100dvh] を外して
+   ここへ一本化したため（2か所で高さを決めると片方だけ直して事故る）。 */
+body.app-shell {
+  height: 100vh;
+  height: 100dvh;
+  height: var(--vvh, 100dvh);
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
+  padding-left: var(--safe-l);
+  padding-right: var(--safe-r);
+  font-size: var(--fs-body);
+}
+
+/* 指の当たり判定。ダブルタップズームの300ms待ちを消すと、
+   低学年の「押したのに反応しない」がなくなる。 */
+* { -webkit-tap-highlight-color: transparent; }
+button, a, [role="button"], summary, label, select,
+input[type="button"], input[type="submit"], input[type="checkbox"], input[type="radio"] {
+  touch-action: manipulation;
+}
+
+/* 指で操作する端末に限って、押せる範囲を 44px 以上にする。
+   マウス操作の先生用PCまで広げると、名簿や添削ツールバーの
+   密なボタン列が間延びしてしまうので pointer: coarse で切り分ける。 */
+@media (pointer: coarse) {
+  button, [role="button"], a[href] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* 文章の中のリンク（フッターの作者名など）は行の中に収まっていてよい */
+  footer a[href], p a[href], .inline-link {
+    min-height: 0;
+    min-width: 0;
+  }
+}
+
+/* 名簿や作文一覧を端まで送ったときに、画面全体が引っぱられて
+   ページごと更新されてしまうのを防ぐ */
+[class*="overflow-auto"], [class*="overflow-y-auto"], [class*="overflow-x-auto"] {
+  overscroll-behavior: contain;
+}
+
+/* キーボードだけで操作している人に、いまどこにいるかを必ず見せる */
+:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+
+/* 背景色が無効化されるハイコントラストモードでも「押せる」と分かるように */
+@media (forced-colors: active) {
+  button, [role="button"] { border: 2px solid ButtonText; }
+}
+
+/* 動きに酔う・光の点滅が苦手な児童のために、端末側の設定を尊重する */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* インストール案内（React が起動する前でも崩れないよう最小限だけ持つ） */
+#install-hint[hidden] { display: none !important; }

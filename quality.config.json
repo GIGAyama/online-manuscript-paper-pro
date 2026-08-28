@@ -3,13 +3,11 @@
   "appName": "オンライン原稿用紙 Pro",
   "repoName": "online-manuscript-paper-pro",
   "type": "A",
-
   "entry": "index.html",
   "manifest": "manifest.webmanifest",
   "serviceWorker": "sw.js",
   "offlinePage": "offline.html",
   "iconDir": "icons",
-
   "limits": {
     "maxFileLines": 5000,
     "maxFileBytes": 409600,
@@ -17,7 +15,6 @@
     "maxIcon512Bytes": 61440,
     "maxFaviconBytes": 30720
   },
-
   "securityExceptions": [
     {
       "rule": "csp-present",
@@ -27,5 +24,10 @@
       "rule": "initial-js-budget",
       "reason": "同上。@babel/standalone だけで約2.9MBあり、300KBの目安を満たせない。AUDIT.md §H1 を参照。"
     }
+  ],
+  "//entrySources": "entry と一緒に読む原本。画面に出るものは index.html だけに書いてあるわけではない（JSX とその中の GLOBAL_STYLES は src/app.jsx、CSS は tools/extra.css）",
+  "entrySources": [
+    "src/app.jsx",
+    "tools/extra.css"
   ]
 }

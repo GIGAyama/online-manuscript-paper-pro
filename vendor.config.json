@@ -1,0 +1,8 @@
+{
+  "//": "アイコンの取りこみ方。bootstrap-icons を丸ごと持つと 229KB。使っている分の SVG だけを mask-image にする",
+  "generator": "tools/vendor/build-vendor.mjs",
+  "wrap": "none",
+  "scan": ["src", "index.html", "offline.html"],
+  "scanExt": [".jsx", ".html"],
+  "targets": [{ "out": "vendor/icons.css", "icons": "bootstrap-icons" }]
+}

@@ -46,7 +46,15 @@ check('dependabot', '.github/dependabot.yml がある', () => has('.github/depen
 check('docs', 'README.md と MANUAL.md が両方ある', () => has('README.md') && has('MANUAL.md'));
 
 // ---- B/C. セキュリティ・堅牢性 -------------------------------------------
-const html = read(cfg.entry);
+/* 画面に出るものは entry だけに書いてあるとはかぎらない。
+   2026-08-28 に JSX の事前ビルドを入れたとき、index.html の中身は
+   src/app.jsx（JSX と GLOBAL_STYLES）と tools/extra.css（CSS）へ移った。
+   entry だけを読むと、**配信物にはちゃんと入っているのに 8 項目が不合格**になる。
+   逆に、生成物だけを読むと原本の取りこぼしに気づけない。だから原本も一緒に読む。 */
+const html = [cfg.entry, ...(cfg.entrySources || [])]
+  .filter((f) => existsSync(join(ROOT, f)))
+  .map(read)
+  .join('\n');
 const sw = read(cfg.serviceWorker);
 
 check('no-localstorage-clear', 'localStorage.clear() を使っていない',
