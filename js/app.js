@@ -3264,18 +3264,18 @@ function App() {
     createRoom: createRoom,
     sendToClient: sendToClient
   })), React.createElement("footer", {
-    className: "app-footer flex-shrink-0 w-full bg-white border-t border-slate-200 pt-1.5 pb-1 sm:pt-2 sm:pb-1.5 text-center text-xs text-slate-500 font-bold no-print z-40 shadow-sm relative"
+    className: "app-footer flex-shrink-0 w-full flex flex-nowrap items-center justify-center gap-1 bg-white border-t border-slate-200 py-1 text-center text-xs text-slate-500 font-bold no-print z-40 shadow-sm relative"
+  }, React.createElement("span", {
+    className: "min-w-0 truncate"
   }, "\xA92026 \u30AA\u30F3\u30E9\u30A4\u30F3\u539F\u7A3F\u7528\u7D19 Pro ", React.createElement("a", {
     href: "https://giga-school.com",
     target: "_blank",
     rel: "noopener noreferrer",
     className: "text-inherit no-underline hover:opacity-80 transition-opacity"
-  }, "GIGA\u5C71"), ' ', React.createElement("a", {
-    href: "https://giga-school.com/apps/online-manuscript-paper-pro/",
-    target: "_blank",
-    rel: "noopener noreferrer",
-    className: "text-inherit no-underline hover:opacity-80 transition-opacity"
-  }, "\u4F7F\u3044\u65B9\u3092\u8AAD\u3080")), React.createElement("div", {
+  }, "GIGA\u5C71")), React.createElement("span", {
+    "data-giga-links": true,
+    "data-links": "terms,privacy"
+  })), React.createElement("div", {
     className: "print-only"
   }, globalPrintDrafts.map(d => React.createElement("div", {
     key: d.id
