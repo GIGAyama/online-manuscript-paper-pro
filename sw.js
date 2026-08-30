@@ -13,12 +13,16 @@
  */
 const CACHE_PREFIX = 'genko-pro-';
 // APP_VERSION は手で上げない。node tools/build-sw.mjs が先読み対象の中身から自動で決める
-const APP_VERSION = 'vcd359476'; /* __APP_VERSION__ */
+const APP_VERSION = 'v2dda5dac'; /* __APP_VERSION__ */
 const CACHE_NAME = CACHE_PREFIX + APP_VERSION;
 
 const APP_SHELL = [
   './',
   './index.html',
+  // 利用規約・プライバシーの行き先を出す部品。並べておかないと、圏外で開いた
+  // ときだけリンクが 1 本も出ない（行き先そのものは開けなくても、どこにあるかは
+  // 見えているほうがいい）。
+  './web/giga-app-links.js',
   './offline.html',
   './manifest.webmanifest',
   './favicon.png',
