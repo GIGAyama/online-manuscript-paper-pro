@@ -13,7 +13,7 @@
  */
 const CACHE_PREFIX = 'genko-pro-';
 // APP_VERSION は手で上げない。node tools/build-sw.mjs が先読み対象の中身から自動で決める
-const APP_VERSION = 'v2dda5dac'; /* __APP_VERSION__ */
+const APP_VERSION = 've6fa49b5'; /* __APP_VERSION__ */
 const CACHE_NAME = CACHE_PREFIX + APP_VERSION;
 
 const APP_SHELL = [

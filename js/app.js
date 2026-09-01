@@ -3273,8 +3273,7 @@ function App() {
     rel: "noopener noreferrer",
     className: "text-inherit no-underline hover:opacity-80 transition-opacity"
   }, "GIGA\u5C71")), React.createElement("span", {
-    "data-giga-links": true,
-    "data-links": "terms,privacy"
+    "data-giga-links": true
   })), React.createElement("div", {
     className: "print-only"
   }, globalPrintDrafts.map(d => React.createElement("div", {
