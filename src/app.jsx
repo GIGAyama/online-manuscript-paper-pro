@@ -2348,10 +2348,10 @@ function App() {
 
             ⚠️ <div> にしないこと。そこで改行が入ってフッターが 2 行になる。
 
-            ⚠️ data-links で「つかいかた」を外してある。このアプリにはまだ
-               docs/manual/ が無く、既定のまま出すと行き止まりのリンクになる。
-               マニュアルを書いたら、この属性ごと消すこと。 */}
-        <span data-giga-links data-links="terms,privacy" />
+            ⚠️ data-links を書かないこと（既定の 3 つを出す）。2026-09-01 に
+               docs/manual/manual.md を書いたので「つかいかた」の行き先ができた。
+               絞ると、画面の前で困っている人がいちばん先に要るものが消える。 */}
+        <span data-giga-links />
       </footer>
 
       <div className="print-only">
